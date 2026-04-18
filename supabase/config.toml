@@ -1,0 +1,8 @@
+project_id = "quant-agentic-rag"
+
+[db]
+major_version = 15
+
+[db.seed]
+enabled = false
+sql_paths = ["./seed.sql"]
