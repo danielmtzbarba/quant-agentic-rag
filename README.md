@@ -1,34 +1,70 @@
+<div align="center">
+
 # Quant Agentic RAG
 
-Production-oriented agentic RAG system for equity research.
+**LangGraph-powered agentic RAG system for equity research with hybrid retrieval, grounded thesis generation, and evaluation-driven reliability**
 
-This project is built around a practical question: how do you turn LLM-based stock analysis from a prompt demo into a system that is ingestible, traceable, testable, and auditable?
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3120/)
+[![FastAPI](https://img.shields.io/badge/fastapi-API-009688.svg)](https://fastapi.tiangolo.com/)
+[![LangGraph](https://img.shields.io/badge/langgraph-workflow-black.svg)](https://www.langchain.com/langgraph)
+[![Postgres](https://img.shields.io/badge/postgres-registry%20%26%20retrieval-336791.svg)](https://www.postgresql.org/)
+[![pgvector](https://img.shields.io/badge/pgvector-hybrid%20search-orange.svg)](https://github.com/pgvector/pgvector)
 
-The current implementation includes:
+</div>
 
-- SEC filing ingestion with section extraction
+## Overview
+
+`Quant Agentic RAG` is an applied LLM system for financial research.
+It is built around a practical question: how do you turn stock-analysis prompting into a system that is ingestible, traceable, testable, and auditable under real retrieval and grounding constraints?
+
+The repository combines:
+
+- source ingestion for filings, transcripts, and news
+- metadata-rich chunking and embedding pipelines
+- hybrid retrieval with finance-aware query planning
+- specialist analyst workflows for fundamentals, sentiment, and risk
+- grounded thesis synthesis with inline source citations
+- deterministic verification, contradiction review, and repair
+- telemetry, audit persistence, and offline release-gate evaluation
+
+The project is best understood as a controlled agentic workflow rather than an open-ended autonomous agent. That design choice is deliberate: financial analysis benefits more from evidence control, provenance, and measurable behavior than from unrestricted tool use.
+
+## Current Status
+
+The project currently supports:
+
+- SEC filing ingestion with section extraction and normalized document storage
 - Alpha Vantage transcript ingestion with speaker-aware parsing
-- Alpha Vantage news ingestion with publisher and sentiment metadata
-- analyst-specific retrieval policies
-- hybrid retrieval with metadata prefilters, lexical search, semantic embeddings, RRF fusion, and reranking
-- financial retrieval with document-aware chunk units, query rewriting, multi-query decomposition, freshness scoring, and source diversity controls
-- neighboring chunk expansion for compact local context support
-- structured analyst outputs
-- verification that checks report grounding against structured `evidence_ids`
-- per-node LLM telemetry with token usage, latency, and model metadata
-- FastAPI delivery, Postgres registry metadata, and Supabase SQL migrations
-- separate chunk-indexing pipeline that persists embeddings in Postgres-backed index tables
-- native pgvector column and cosine-distance search path for Postgres / Supabase deployments
+- Alpha Vantage news ingestion with relevance, publisher, and sentiment metadata
+- chunk-level indexing with OpenAI embeddings persisted in Postgres-backed tables
+- native `pgvector` semantic retrieval for Postgres / Supabase deployments
+- analyst-specific retrieval policies for fundamentals, sentiment, and risk
+- hybrid retrieval with metadata prefilters, lexical search, semantic search, reciprocal rank fusion, reranking, freshness scoring, diversity controls, and neighboring chunk expansion
+- structured analyst outputs with typed findings and evidence ids
+- cross-analyst contradiction detection and contradiction review
+- thesis-preparation logic that deterministically maps findings into report sections
+- grounding verification against structured `evidence_ids`
+- a single verifier-driven repair pass for unsupported output cleanup
+- per-node LLM telemetry including token usage, latency, retry counts, timeout counts, model metadata, and estimated cost
+- FastAPI delivery, CLI workflows, audit persistence, and thesis artifact storage
+
+Recent system hardening work also introduced:
+
+- offline golden-set evaluation and release-gate aggregation
+- retrieval metrics such as `precision@k`, `recall@k`, and off-ticker evidence rate
+- stricter deterministic checks for malformed citations and uncited numeric claims
+- contradiction surfacing metrics and repair-pass tracking
+- Supabase migration support for shared registry and retrieval schema evolution
 
 ## System Overview
 
 ```mermaid
 flowchart TD
     A["User Question"] --> B["Planner"]
-    B --> C["Fundamentals Retrieval"]
-    B --> D["Fundamentals Corpus Retrieval"]
-    B --> E["Sentiment Corpus Retrieval"]
-    B --> F["Risk Corpus Retrieval"]
+    B --> C["Fundamentals Snapshot"]
+    B --> D["Fundamentals Retrieval"]
+    B --> E["Sentiment Retrieval"]
+    B --> F["Risk Retrieval"]
 
     C --> G["Fundamentals Analyst"]
     D --> G
@@ -39,439 +75,324 @@ flowchart TD
     E --> J
     F --> J
 
-    G --> K["Thesis Preparation"]
+    G --> K["Contradiction Check"]
     H --> K
     I --> K
-    K --> L["Thesis Writer"]
-    J --> L
+    K --> L["Contradiction Review"]
+    L --> M["Thesis Preparation"]
+    M --> N["Thesis Writer"]
+    J --> N
+    N --> O["Verifier"]
+    O --> P["Optional Repair Pass"]
+    P --> Q["Final Report + Metrics + Audit Artifacts"]
 
-    L --> M["Verifier"]
-    M --> O["Report + Verification Summary"]
-
-    subgraph N["Corpus Layer"]
-        N1["SEC Filings"]
-        N2["Transcripts"]
-        N3["News"]
+    subgraph R["Corpus Layer"]
+        R1["SEC Filings"]
+        R2["Transcripts"]
+        R3["News"]
     end
 
-    N1 --> D
-    N1 --> F
-    N2 --> E
-    N2 --> F
-    N3 --> E
-    N3 --> F
+    R1 --> D
+    R1 --> F
+    R2 --> E
+    R2 --> F
+    R3 --> E
+    R3 --> F
 ```
 
-## Current Workflow
+## Key Features
 
-1. `planner`
-Creates a compact execution plan from the ticker and user question.
+- **Controlled agentic workflow** using LangGraph state orchestration rather than a single opaque prompt.
+- **Profile-aware hybrid retrieval** that treats filings, transcripts, and news as different evidence surfaces with different policies.
+- **Typed intermediate reasoning artifacts** so analysts emit findings, evidence ids, confidence, and evidence gaps instead of only prose.
+- **Grounded synthesis contract** where the thesis writer works from a prepared evidence packet and exact citation syntax.
+- **Deterministic reliability checks** for unsupported findings, malformed citations, and uncited numeric claims.
+- **Contradiction handling** that surfaces disagreement across specialist analysts instead of collapsing conflicting evidence into one narrative.
+- **Evaluation-driven iteration** with golden-set cases, release gates, retrieval metrics, and repair-pass tracking.
+- **Operational visibility** through telemetry, audit records, storage metadata, and cost estimation.
 
-2. `fundamentals_retrieval`
-Fetches structured fundamentals from `yfinance` for prototyping.
+## Architecture
 
-3. `fundamentals_corpus_retrieval`
-Retrieves filing-heavy evidence for the fundamentals analyst.
+The system is organized into five main layers.
 
-4. `sentiment_corpus_retrieval`
-Retrieves transcript + news evidence for the sentiment analyst.
+### 1. Ingestion and normalization
 
-5. `risk_corpus_retrieval`
-Retrieves filing + news + transcript evidence for the risk analyst.
+- `SEC filings`: raw filings are downloaded, normalized, and split into section-aware document records.
+- `Transcripts`: earnings calls are parsed into speaker turns with role metadata preserved.
+- `News`: articles are normalized with sentiment, publisher, and relevance metadata.
 
-6. `aggregate_evidence`
-Merges and deduplicates the analyst-specific evidence pools.
+Each normalized document is represented with stable provenance fields so the retrieval and verification stack can trace claims back to source material.
 
-7. `fundamentals_analyst`
-Returns structured fundamentals analysis.
+### 2. Chunking and indexing
 
-8. `sentiment_analyst`
-Returns structured sentiment analysis.
+- filings are chunked at the section level
+- transcripts are chunked by speaker turn
+- news is chunked at compact article level
+- embeddings are generated in a separate indexing pipeline
+- chunk embeddings are stored independently from normalized documents
 
-9. `risk_analyst`
-Returns structured risk analysis.
+This separation matters because ingestion, normalization, and embedding/indexing have different operational costs and failure modes.
 
-10. `thesis_preparation`
-Buckets structured findings into explicit report sections before synthesis.
+### 3. Retrieval
 
-11. `thesis`
-Builds the final investment thesis from prepared thesis sections and the merged evidence pool.
+Retrieval is not generic vector search.
+Each analyst profile applies domain-aware query planning and filtering.
 
-12. `verifier`
-Checks:
-- report citation coverage against retrieved sources
-- grounding of structured findings against cited `evidence_ids`
-- missing-data flags and unsupported findings
+Retrieval flow:
 
-## Implemented Capabilities
+1. rewrite the user question for retrieval
+2. decompose into finance-specific subqueries
+3. prefilter by metadata
+4. run lexical and semantic search
+5. fuse ranked lists with reciprocal rank fusion
+6. rerank the top candidate pool
+7. enforce source diversity and freshness preferences
+8. optionally attach neighboring chunks for local context
 
-### Corpus ingestion
+Retrieval metadata includes:
 
-- SEC ingestion writes raw filings, normalized documents, and section-level chunks.
-- Transcript ingestion writes raw provider payloads, normalized transcript documents, and speaker-aware chunks.
-- News ingestion writes raw feed payloads, normalized article documents, and sentiment-aware news chunks.
-- Ingestion does not build embeddings inline.
-- A separate indexing pipeline reads persisted chunks and writes retrieval embeddings into dedicated index tables.
+- ticker and document type
+- form type and filing section
+- publication time and freshness windows
+- speaker role and publisher
+- sentiment and news relevance metadata
 
-### Retrieval and agent specialization
+### 4. Specialist reasoning
 
-- Each specialist agent uses a different retrieval profile instead of sharing one generic evidence bundle.
-- Retrieval is document-aware rather than generic-chunk-first:
-  - filings are retrieved as section-derived chunks
-  - transcripts are retrieved as speaker-turn-derived chunks
-  - news is retrieved as article-derived chunks
-- Retrieval rewrites the question into a retrieval-oriented query and decomposes it into multiple finance-specific subqueries.
-- Typical decomposition covers themes like:
-  - growth
-  - margins
-  - guidance
-  - risk factors
-  - regulation
-- Retrieval prefilters by metadata:
-  - ticker
-  - document type
-  - form type
-  - section
-  - recency window
-  - publisher / speaker role
-- First-stage retrieval runs lexical and semantic searches in parallel.
-- Candidate lists are fused with reciprocal rank fusion (`RRF`).
-- Top fused candidates are reranked before evidence is returned.
-- Freshness-aware scoring favors:
-  - news within profile-specific windows:
-    - sentiment: last 14 days
-    - risk: last 30 days
-  - latest-quarter transcripts first
-  - latest 10-K / 10-Q filings first, with recency weighting
-- Source diversity controls keep near-duplicate news from crowding out filings and transcripts.
-- Neighboring chunks can be added around selected primary chunks to preserve local context.
-- Fundamentals retrieval prefers filings and financial sections.
-- Sentiment retrieval prefers transcripts and fresh news.
-- Risk retrieval prioritizes risk-factor sections plus recent adverse evidence.
+The workflow uses three specialist analysis roles:
 
-### Structured reasoning
+- `fundamentals`
+- `sentiment`
+- `risk`
 
-- Analysts return typed findings with:
-  - `finding`
-  - `evidence_ids`
-  - `confidence`
-  - `missing_data`
-  - optional `finding_type`
-- Thesis generation consumes structured analyst outputs.
-- Thesis preparation maps structured findings into explicit report sections.
-- Verification checks whether final report citations actually support those structured findings.
+Each analyst receives a scoped evidence bundle rather than the full merged corpus.
+That improves relevance and keeps financial reasoning tasks separated by evidence type.
 
-### Runtime and delivery
+### 5. Synthesis and verification
 
-- FastAPI API
-- CLI for ingestion and research runs
-- Rich logging locally, `logfmt` in production-style environments
-- request IDs in middleware
-- Dockerfile
-- Postgres registry metadata
-- Postgres-backed chunk embedding index
-- Supabase SQL migrations in a dedicated `rag` schema
-- per-node telemetry for:
-  - token usage
-  - latency
-  - model/provider/temperature metadata
-  - retry counts
-  - timeout counts
-  - estimated node cost
-- per-run totals for:
-  - input tokens
-  - output tokens
-  - total tokens
-  - estimated run cost
-  - retrieval hit-rate summaries
-  - retrieval freshness summaries
-  - retrieval diversity summaries
-- structured retrieval-stage logs for:
-  - query planning
-  - subquery execution
-  - fusion
-  - reranking
-  - diversity filtering
-  - final selection
+The final report is not generated directly from raw retrieval output.
+Instead the system:
 
-## Repository Layout
+1. structures analyst findings
+2. detects contradictions
+3. prepares thesis sections deterministically
+4. synthesizes a grounded investment thesis
+5. verifies citation and grounding behavior
+6. runs one repair pass if needed
 
-```text
-quant-agentic-rag/
-  docs/
-  data/
-  supabase/
-    config.toml
-    migrations/
-  src/stock_agent_rag/
-    api.py
-    cli.py
-    config.py
-    db.py
-    ingestion/
-      news.py
-      sec.py
-      transcripts.py
-    logging.py
-    middleware.py
-    prompts.py
-    registry.py
-    schemas.py
-    service.py
-    tools.py
-    workflow.py
-  tests/
-  README.md
-  pyproject.toml
-```
+This design reduces unsupported generation and creates a measurable contract between retrieval, reasoning, and output quality.
+
+## Evaluation and Reliability
+
+The evaluation stack is designed around system behavior, not only model aesthetics.
+
+Current evaluation coverage includes:
+
+- deterministic grounding regression tests
+- offline golden-set evaluation
+- release-gate thresholds
+- retrieval `precision@k`
+- retrieval `recall@k`
+- off-ticker evidence rate
+- unsupported numeric claim rate
+- contradiction surfacing rate
+- pass rate after repair
+
+Deterministic verifier checks currently enforce:
+
+- exact inline citation syntax: `[source:<id>]`
+- no malformed citation variants
+- no uncited numeric claims
+- no placeholder grounding text
+- limits on unsupported and partially grounded findings
+
+This keeps the project focused on measurable system quality rather than prompt-only safeguards.
 
 ## Quickstart
 
-### 1. Environment
+Using [`uv`](https://github.com/astral-sh/uv) is recommended.
 
-Copy `.env.example` to `.env` and fill in the keys you plan to use:
+```bash
+git clone https://github.com/danielmtzbarba/quant-agentic-rag.git
+cd quant-agentic-rag
+uv sync --extra dev
+```
+
+Copy `.env.example` to `.env` and configure the providers you plan to use:
 
 - `OPENAI_API_KEY`
+- `OPENAI_MODEL_NAME`
 - `OPENAI_EMBEDDING_MODEL`
 - `OPENAI_EMBEDDING_DIMENSIONS`
 - `VANTAGE_API_KEY`
 - `DATABASE_URL`
 
-### 2. Install
+Run a one-off research workflow:
 
 ```bash
-uv sync --extra dev
+uv run stock-agent-rag research \
+  --ticker NVDA \
+  --question "Generate an evidence-backed investment thesis."
 ```
 
-### 3. Apply schema migrations
+## Documentation
 
-Database schema for this repo is managed under [supabase/migrations](/home/danielmtz/Projects/agentic-rag/quant-agentic-rag/supabase/migrations).
+Project documentation lives in `docs/`:
 
-Schema ownership is:
+- [AI System Design](docs/AI_SYSTEM_DESIGN.md)
+- [Workflow](docs/WORKFLOW.md)
+- [Evaluation](docs/EVALUATION.md)
+- [SEC Ingestion](docs/SEC_INGESTION.md)
+- [Transcript Ingestion](docs/TRANSCRIPT_INGESTION.md)
+- [News Ingestion](docs/NEWS_INGESTION.md)
+- [News Relevance Scoring](docs/NEWS_RELEVANCE_SCORING.md)
+- [Thesis Artifacts](docs/THESIS_ARTIFACTS.md)
+- [Vector Databases](docs/VECTOR_DATABASES.md)
+- [Supabase Migrations](docs/SUPABASE_MIGRATIONS.md)
+- [Interview Prep Notes](docs/INTERVIEW_PREP_SENIOR_RESEARCH_ENGINEER.md)
 
-- `core`: owned by `mt5-quant-server`
-- `rag`: owned by this repo
+These docs cover the architecture and subsystem decisions as they exist in the repository today.
 
-If you need to run Supabase migrations across both repositories, use the merged bundle workflow
-documented in [docs/SUPABASE_MIGRATIONS.md](/home/danielmtz/Projects/agentic-rag/quant-agentic-rag/docs/SUPABASE_MIGRATIONS.md).
+## Repository Layout
 
-Example:
+`quant-agentic-rag/` is organized into a few main layers:
+
+- `src/stock_agent_rag/workflow.py`
+  LangGraph workflow definition, node contracts, thesis generation, verification, and repair.
+
+- `src/stock_agent_rag/retrieval.py`
+  Query planning, hybrid retrieval, reranking, freshness handling, diversity controls, and neighbor expansion.
+
+- `src/stock_agent_rag/ingestion/`
+  SEC, transcript, and news ingestion pipelines.
+
+- `src/stock_agent_rag/indexing.py`
+  Chunk embedding pipeline and indexing-run tracking.
+
+- `src/stock_agent_rag/service.py`
+  Workflow execution wrapper, aggregation of metrics, audit integration, and thesis artifact persistence.
+
+- `src/stock_agent_rag/api.py`
+  FastAPI delivery surface.
+
+- `src/stock_agent_rag/cli.py`
+  CLI entrypoints for research runs, ingestion, indexing, and release-gate evaluation.
+
+- `src/stock_agent_rag/db.py`
+  SQLAlchemy models for documents, chunks, embeddings, runs, and persisted artifacts.
+
+- `tests/`
+  Regression coverage for retrieval, verification, ingestion, evaluation, telemetry, and graph behavior.
+
+- `supabase/migrations/`
+  Schema migrations for the registry and retrieval stack.
+
+- `docs/`
+  Technical design and subsystem documentation.
+
+## Configuration
+
+Key runtime configuration areas include:
+
+- retrieval candidate pool and rerank limits
+- neighbor expansion budget
+- profile-specific freshness windows
+- embedding dimensions
+- verifier thresholds for unsupported findings
+- default top-k values
+
+## Running The System
+
+### One-off research run
 
 ```bash
-uv run stock-agent-rag bundle-supabase \
-  --core-repo /home/danielmtz/Projects/algotrading/mt5-quant-server \
-  --output-dir /tmp/quant-supabase-bundle
+uv run stock-agent-rag research \
+  --ticker NVDA \
+  --question "Generate an evidence-backed investment thesis."
 ```
 
-Then run Supabase from the generated bundle:
+### Run the API
 
 ```bash
-cd /tmp/quant-supabase-bundle
-supabase db push
+uv run stock-agent-rag serve --host 0.0.0.0 --port 8000
 ```
 
-Or do both steps in one command:
+### Database initialization
 
 ```bash
-uv run stock-agent-rag bundle-supabase \
-  --core-repo /home/danielmtz/Projects/algotrading/mt5-quant-server \
-  --output-dir /tmp/quant-supabase-bundle \
-  --project-ref YOUR_PROJECT_REF \
-  --push
+uv run stock-agent-rag db-init
 ```
 
-### 4. Start the API
+## Ingestion Workflows
+
+### SEC filings
 
 ```bash
-uv run stock-agent-rag serve
+uv run stock-agent-rag ingest-sec \
+  --ticker NVDA \
+  --form-type 10-K \
+  --limit 1
 ```
 
-### 5. Run a research job
+### Earnings transcripts
 
 ```bash
-uv run stock-agent-rag research --ticker NVDA --question "Generate an evidence-backed investment thesis."
-```
-
-### 6. Index chunk embeddings
-
-Semantic retrieval needs persisted chunk embeddings in the registry database.
-
-```bash
-uv run stock-agent-rag index-chunks --ticker NVDA
-```
-
-Use `--force` to rebuild existing embeddings:
-
-```bash
-uv run stock-agent-rag index-chunks --ticker NVDA --force
-```
-
-On Postgres/Supabase, semantic retrieval prefers the native `pgvector` column and index.
-Local SQLite and test environments fall back to the persisted JSON embedding payload.
-
-## Ingestion Commands
-
-### SEC
-
-```bash
-uv run stock-agent-rag ingest-sec --ticker NVDA --form-type 10-K --limit 1
-```
-
-### Transcript
-
-```bash
-uv run stock-agent-rag ingest-transcript --ticker NVDA --year 2026 --quarter 1
+uv run stock-agent-rag ingest-transcript \
+  --ticker NVDA \
+  --year 2025 \
+  --quarter 4
 ```
 
 ### News
 
 ```bash
-uv run stock-agent-rag ingest-news --ticker NVDA --limit 20
+uv run stock-agent-rag ingest-news \
+  --ticker NVDA \
+  --limit 20
 ```
 
-## API
-
-Available endpoints:
-
-- `GET /healthz`
-- `POST /v1/research`
-
-Example:
+### Chunk indexing
 
 ```bash
-curl -X POST http://localhost:8000/v1/research \
-  -H "content-type: application/json" \
-  -d '{
-    "ticker": "NVDA",
-    "question": "Generate an evidence-backed investment thesis."
-  }'
+uv run stock-agent-rag index-chunks --ticker NVDA
 ```
 
-Response fields include:
+## Evaluation
 
-- `plan`
-- `report`
-- `verification_status`
-- `verification_summary`
-- `retrieved_sources`
-- `token_usage`
-- `model_metadata`
-- `runtime_metrics`
-- `retrieval_metrics`
-- `estimated_cost_usd`
-- `latency_ms`
-
-## Storage Model
-
-### Filesystem
-
-The corpus source of truth is currently file-based:
-
-- `data/raw/...`
-- `data/normalized/...`
-- `data/chunks/...`
-
-### Postgres
-
-Postgres is used as the registry and control plane:
-
-- `ingestion_runs`
-- `documents`
-- `chunks`
-- `source_registry`
-- `research_runs`
-
-Schema ownership is managed by Supabase SQL migrations in this repo under the `rag` schema.
-
-`research_runs` persists:
-
-- final report artifacts
-- structured analyst outputs
-- thesis preparation artifacts
-- verifier metrics
-- per-node telemetry
-- per-run token totals
-- model metadata
-- runtime retry/timeout metrics
-- retrieval hit-rate and freshness metrics
-- estimated run cost
-
-### Planned future stores
-
-- vector database for hybrid retrieval
-- InfluxDB for candle data from MetaTrader 5
-
-## Logging
-
-Supported modes:
-
-- `LOG_FORMAT=rich`
-- `LOG_FORMAT=logfmt`
-- `LOG_FORMAT=hybrid`
-- `LOG_FORMAT=auto`
-
-`auto` resolves to Rich in local/dev and `logfmt` elsewhere.
-
-## Testing
+### Run targeted tests
 
 ```bash
-uv run pytest
-uv run ruff check .
+uv run pytest tests/test_graph.py tests/test_hybrid_retrieval.py tests/test_evaluation.py
 ```
 
-Current test coverage includes:
+### Run release-gate evaluation
 
-- API behavior
-- research audit persistence
-- registry behavior
-- SEC ingestion
-- transcript ingestion
-- news ingestion
-- retrieval policies
-- thesis preparation
-- verifier grounding logic
+```bash
+uv run stock-agent-rag release-gates --results path/to/results.json
+```
 
-## Documentation
+## Interview-Relevant Scope
 
-- [docs/WORKFLOW.md](docs/WORKFLOW.md)
-- [docs/AI_SYSTEM_DESIGN.md](docs/AI_SYSTEM_DESIGN.md)
-- [docs/SEC_INGESTION.md](docs/SEC_INGESTION.md)
-- [docs/TRANSCRIPT_INGESTION.md](docs/TRANSCRIPT_INGESTION.md)
-- [docs/NEWS_INGESTION.md](docs/NEWS_INGESTION.md)
-- [docs/POSTGRES_REGISTRY.md](docs/POSTGRES_REGISTRY.md)
-- [docs/VECTOR_DATABASES.md](docs/VECTOR_DATABASES.md)
-- [docs/AGENT_FUNDAMENTALS.md](docs/AGENT_FUNDAMENTALS.md)
-- [docs/AGENT_SENTIMENT.md](docs/AGENT_SENTIMENT.md)
-- [docs/AGENT_RISK.md](docs/AGENT_RISK.md)
-- [docs/ROADMAP.md](docs/ROADMAP.md)
-- [docs/EVALUATION.md](docs/EVALUATION.md)
+This repository is a strong fit for discussions around:
 
-## Current Status
+- LLM system design
+- agentic workflow orchestration
+- RAG architecture
+- retrieval evaluation
+- grounding and verification
+- observability and auditability
+- converting prototypes into measurable systems
 
-What is production-oriented already:
+It is a weaker fit for claims around:
 
-- typed workflow state
-- repeatable ingestion pipelines
-- raw/normalized/chunked corpus boundaries
-- dedicated registry schema and migrations
-- source-aware retrieval policies
-- structured intermediate outputs
-- deterministic grounding checks in verification
-- fail-closed verifier thresholds
-- persisted research-run artifacts for auditability
+- high-scale distributed serving
+- institutional-grade financial data quality
+- fully autonomous agents with dynamic long-horizon planning
 
-What is still intentionally prototype-level:
+## Known Boundaries
 
-- `yfinance` fundamentals
-- lexical local retrieval instead of hybrid/vector retrieval
-- no reranker yet
-- no offline eval dashboard yet
-- no production deployment manifests yet
-
-## Next Best Steps
-
-1. Make thesis generation map more explicitly from structured findings to final report sections.
-2. Add fail-closed verifier rules based on unsupported finding thresholds.
-3. Persist structured analyst outputs for auditability and evaluations.
-4. Replace local lexical search with hybrid retrieval plus reranking.
-5. Add a golden-set evaluation harness.
+- `yfinance` is used as a convenient fundamentals snapshot source during prototyping.
+- Alpha Vantage is sufficient for experimentation but not the strongest production data provider.
+- The workflow is a fixed graph with controlled repair rather than a fully adaptive autonomous agent.
+- Evaluation is strong on grounding and retrieval behavior, but still weaker on human preference and online impact measurement.
+- The project is optimized for reliability and inspectability, not unconstrained autonomy.
