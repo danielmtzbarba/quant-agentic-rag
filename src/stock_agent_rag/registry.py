@@ -92,6 +92,12 @@ class RegistryService:
             publisher=document.publisher,
             sentiment_label=document.sentiment_label,
             sentiment_score=document.sentiment_score,
+            ticker_relevance_score=document.ticker_relevance_score,
+            entity_title_match=document.entity_title_match,
+            entity_body_match=document.entity_body_match,
+            news_relevance_score=document.news_relevance_score,
+            news_relevance_tier=document.news_relevance_tier,
+            source_quality_tier=document.source_quality_tier,
             section_count=len(document.sections),
             sections_json=[section.model_dump(mode="json") for section in document.sections],
             transcript_turn_count=len(document.transcript_turns),
@@ -143,6 +149,12 @@ class RegistryService:
                 publisher=chunk.publisher,
                 sentiment_label=chunk.sentiment_label,
                 sentiment_score=chunk.sentiment_score,
+                ticker_relevance_score=chunk.ticker_relevance_score,
+                entity_title_match=chunk.entity_title_match,
+                entity_body_match=chunk.entity_body_match,
+                news_relevance_score=chunk.news_relevance_score,
+                news_relevance_tier=chunk.news_relevance_tier,
+                source_quality_tier=chunk.source_quality_tier,
             )
             self.session.merge(row)
         self._commit()

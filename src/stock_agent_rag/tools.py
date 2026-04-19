@@ -80,6 +80,12 @@ def _parse_record(path: Path, ticker: str) -> list[EvidenceRecord]:
                 publisher=item.get("publisher"),
                 sentiment_label=item.get("sentiment_label"),
                 sentiment_score=item.get("sentiment_score"),
+                ticker_relevance_score=item.get("ticker_relevance_score"),
+                entity_title_match=item.get("entity_title_match"),
+                entity_body_match=item.get("entity_body_match"),
+                news_relevance_score=item.get("news_relevance_score"),
+                news_relevance_tier=item.get("news_relevance_tier"),
+                source_quality_tier=item.get("source_quality_tier"),
             )
         )
     return records
@@ -135,6 +141,7 @@ def _boost_for_profile(record: EvidenceRecord, profile: str | None) -> float:
             boost += 2.5
         if record.document_type == "news":
             boost += 1.5
+            boost += _news_quality_boost(record)
         if record.speaker_role and any(
             token in record.speaker_role.lower()
             for token in ("chief", "ceo", "cfo", "president", "investor relations")
@@ -151,12 +158,26 @@ def _boost_for_profile(record: EvidenceRecord, profile: str | None) -> float:
             boost += 3.0
         if record.document_type == "news":
             boost += 1.5
+            boost += _news_quality_boost(record)
         if record.sentiment_label and record.sentiment_label.lower() in {
             "bearish",
             "somewhat-bearish",
         }:
             boost += 1.0
     return boost
+
+
+def _news_quality_boost(record: EvidenceRecord) -> float:
+    if record.document_type != "news":
+        return 0.0
+    score = float(record.news_relevance_score or 0.0) * 2.0
+    if record.source_quality_tier == "trusted":
+        score += 0.35
+    elif record.source_quality_tier == "standard":
+        score += 0.15
+    else:
+        score -= 0.15
+    return score
 
 
 def merge_evidence_sets(*collections: list[EvidenceRecord]) -> list[EvidenceRecord]:
@@ -245,6 +266,50 @@ def fetch_fundamentals_snapshot(ticker: str) -> FundamentalsSnapshot:
             "operating_margins": info.get("operatingMargins"),
         },
     )
+
+
+def fundamentals_snapshot_to_evidence(snapshot: FundamentalsSnapshot) -> list[EvidenceRecord]:
+    metric_order = (
+        "market_cap",
+        "trailing_pe",
+        "forward_pe",
+        "peg_ratio",
+        "revenue_growth",
+        "return_on_equity",
+        "debt_to_equity",
+        "current_ratio",
+        "free_cash_flow",
+        "operating_margins",
+    )
+    as_of = snapshot.as_of.isoformat() if snapshot.as_of else "unknown"
+    source_url = f"https://finance.yahoo.com/quote/{snapshot.ticker}"
+    records: list[EvidenceRecord] = []
+
+    for metric_name in metric_order:
+        value = snapshot.metrics.get(metric_name)
+        if value is None:
+            continue
+        rendered_value = value if isinstance(value, str) else repr(value)
+        records.append(
+            EvidenceRecord(
+                source_id=f"{snapshot.ticker.lower()}-fundamentals-{metric_name}",
+                ticker=snapshot.ticker,
+                title=f"{snapshot.ticker} fundamentals: {metric_name}",
+                content=(
+                    f"Ticker: {snapshot.ticker}\n"
+                    f"Metric: {metric_name}\n"
+                    f"Value: {rendered_value}\n"
+                    f"As of: {as_of}\n"
+                    f"Provider: {snapshot.source}"
+                ),
+                document_type="fundamentals",
+                source_url=source_url,
+                published_at=snapshot.as_of,
+                provider=snapshot.source,
+                metadata_version="1.0",
+            )
+        )
+    return records
 
 
 @tool

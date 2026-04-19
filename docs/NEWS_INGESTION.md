@@ -29,12 +29,23 @@ Each article becomes a `DocumentRecord` with:
 - publisher metadata
 - timestamp and URL
 - sentiment label and score from the provider feed
+- ticker relevance metadata:
+  - `ticker_relevance_score`
+  - `entity_title_match`
+  - `entity_body_match`
+  - `news_relevance_score`
+  - `news_relevance_tier`
+  - `source_quality_tier`
 - article text assembled from headline, publisher, summary, and sentiment metadata
+
+Articles are now rejected when the requested ticker is present only in provider sentiment metadata
+but the title and summary do not directly mention the company or ticker.
 
 ## Chunking Strategy
 
 - one chunk per article for now
 - preserve `publisher`, `sentiment_label`, and `sentiment_score`
+- preserve entity-match and source-quality metadata for retrieval
 - keep chunks compact and freshness-oriented for the sentiment and risk agents
 
 ## Registry Persistence
@@ -54,5 +65,8 @@ uv run stock-agent-rag ingest-news --ticker NVDA --limit 20
 ## Current Limitations
 
 - the current implementation stores provider summaries, not full article bodies
-- source-specific ranking and publisher trust scoring can be added later
-- hybrid retrieval and recency-aware reranking are still future work
+- alias coverage is seeded in code and should be expanded or externalized over time
+- direct-mention validation is conservative and may drop borderline sector-context articles
+
+See [NEWS_RELEVANCE_SCORING.md](/home/danielmtz/Projects/agentic-rag/quant-agentic-rag/docs/NEWS_RELEVANCE_SCORING.md)
+for the current scoring and filtering rules.

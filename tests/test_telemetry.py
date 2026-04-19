@@ -82,6 +82,7 @@ def test_build_retrieval_metrics_includes_hit_rates_and_freshness() -> None:
         risk_evidence=risk,
         retrieved_evidence=merged,
         default_top_k=4,
+        target_ticker="NVDA",
     )
 
     assert metrics["profile_hit_rates"] == {
@@ -97,3 +98,40 @@ def test_build_retrieval_metrics_includes_hit_rates_and_freshness() -> None:
     assert metrics["sources_with_timestamps"] == 3
     assert metrics["fresh_sources_7d_ratio"] == 0.6667
     assert metrics["fresh_sources_30d_ratio"] == 0.6667
+    assert metrics["off_ticker_evidence_count"] == 0
+    assert metrics["off_ticker_evidence_rate"] == 0.0
+
+
+def test_build_retrieval_metrics_tracks_off_ticker_news() -> None:
+    news = [
+        EvidenceRecord(
+            source_id="news-1",
+            ticker="NVDA",
+            title="Direct company article",
+            content="content",
+            document_type="news",
+            entity_title_match=True,
+            entity_body_match=True,
+        ),
+        EvidenceRecord(
+            source_id="news-2",
+            ticker="INTC",
+            title="Off ticker article",
+            content="content",
+            document_type="news",
+            entity_title_match=False,
+            entity_body_match=False,
+        ),
+    ]
+
+    metrics = build_retrieval_metrics(
+        fundamentals_evidence=[],
+        sentiment_evidence=news,
+        risk_evidence=[],
+        retrieved_evidence=news,
+        default_top_k=4,
+        target_ticker="NVDA",
+    )
+
+    assert metrics["off_ticker_evidence_count"] == 1
+    assert metrics["off_ticker_evidence_rate"] == 0.5

@@ -70,7 +70,7 @@ Requirements:
 """
 
 THESIS_PROMPT = """You are the lead research writer.
-Combine the planner output and prepared thesis sections into an evidence-backed investment thesis.
+Combine the planner output and section grounding packet into an evidence-backed investment thesis.
 Structure:
 1. Executive Summary
 2. Bull Case
@@ -80,10 +80,32 @@ Structure:
 6. Evidence Gaps
 
 Requirements:
-- use the prepared thesis sections as the primary structure
+- use the section grounding packet as the primary structure and evidence contract
 - explicitly surface unresolved contradictions when they materially affect the thesis
 - ensure each section reflects the findings assigned to it
-- every material claim should include at least one source id
+- every material claim should include an inline citation in the exact
+  format `[source:<id>]`
+- do not use `(source:<id>)`, `source:<id>`, footnotes, or any other citation format
+- every numeric claim must include at least one inline citation in the same sentence or bullet
+- do not write `evidence not provided`
+- if a claim is not supported by the supplied evidence ids, omit it instead of guessing
+- if a sentence or bullet cannot be grounded with exact citations, delete it
+- do not introduce evidence ids that are not present in the grounding packet
+"""
+
+THESIS_REPAIR_PROMPT = """You are the lead research writer performing
+a single grounding repair pass.
+Rewrite the thesis using the verifier feedback and the section grounding packet.
+
+Requirements:
+- preserve supported claims when possible
+- remove unsupported or weakly grounded claims
+- use only exact `[source:<id>]` citations
+- use only evidence ids present in the grounding packet
+- every numeric claim must include an inline citation in the same sentence or bullet
+- do not write `evidence not provided`
+- if a claim cannot be repaired with exact citations, delete it
+- produce a full corrected thesis, not a diff
 """
 
 VERIFIER_PROMPT = """You are a verification agent.

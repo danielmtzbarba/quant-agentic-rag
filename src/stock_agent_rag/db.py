@@ -91,6 +91,12 @@ class DocumentORM(Base):
     publisher: Mapped[str | None] = mapped_column(String(255), index=True)
     sentiment_label: Mapped[str | None] = mapped_column(String(64), index=True)
     sentiment_score: Mapped[float | None] = mapped_column(Float)
+    ticker_relevance_score: Mapped[float | None] = mapped_column(Float)
+    entity_title_match: Mapped[bool | None] = mapped_column(Boolean)
+    entity_body_match: Mapped[bool | None] = mapped_column(Boolean)
+    news_relevance_score: Mapped[float | None] = mapped_column(Float, index=True)
+    news_relevance_tier: Mapped[str | None] = mapped_column(String(32), index=True)
+    source_quality_tier: Mapped[str | None] = mapped_column(String(32), index=True)
     section_count: Mapped[int] = mapped_column(Integer, default=0)
     sections_json: Mapped[list[dict]] = mapped_column(JSON, default=list)
     transcript_turn_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -122,6 +128,12 @@ class ChunkORM(Base):
     publisher: Mapped[str | None] = mapped_column(String(255), index=True)
     sentiment_label: Mapped[str | None] = mapped_column(String(64), index=True)
     sentiment_score: Mapped[float | None] = mapped_column(Float)
+    ticker_relevance_score: Mapped[float | None] = mapped_column(Float)
+    entity_title_match: Mapped[bool | None] = mapped_column(Boolean)
+    entity_body_match: Mapped[bool | None] = mapped_column(Boolean)
+    news_relevance_score: Mapped[float | None] = mapped_column(Float, index=True)
+    news_relevance_tier: Mapped[str | None] = mapped_column(String(32), index=True)
+    source_quality_tier: Mapped[str | None] = mapped_column(String(32), index=True)
 
 
 class ChunkEmbeddingORM(Base):

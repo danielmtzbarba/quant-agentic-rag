@@ -16,6 +16,7 @@ from .prompts import (
     RISK_ANALYST_PROMPT,
     SENTIMENT_ANALYST_PROMPT,
     THESIS_PROMPT,
+    THESIS_REPAIR_PROMPT,
     VERIFIER_PROMPT,
 )
 from .schemas import (
@@ -36,11 +37,17 @@ from .telemetry import (
 from .tools import (
     build_evidence_context,
     fetch_fundamentals_snapshot,
+    fundamentals_snapshot_to_evidence,
     local_corpus_search,
     merge_evidence_sets,
 )
 
 SOURCE_CITATION_RE = re.compile(r"\[source:([^\]]+)\]")
+INLINE_SOURCE_CITATION_RE = re.compile(r"\[source:[^\]]+\]")
+MALFORMED_SOURCE_CITATION_RE = re.compile(r"(?<!\[)\bsource:[A-Za-z0-9_.:-]+\b")
+NUMERIC_TOKEN_RE = re.compile(
+    r"(?<!\[source:)(?<![A-Za-z])(?:\$?\d[\d,]*(?:\.\d+)?%?)(?![^\[]*\])"
+)
 TOKEN_RE = re.compile(r"[a-z0-9]+")
 POSITIVE_FINDING_TOKENS = {
     "strong",
@@ -290,7 +297,12 @@ def risk_corpus_retrieval_node(state: ResearchState) -> dict:
 
 
 def aggregate_evidence_node(state: ResearchState) -> dict:
+    fundamentals_snapshot_evidence: list[EvidenceRecord] = []
+    fundamentals = state.get("fundamentals")
+    if isinstance(fundamentals, FundamentalsSnapshot):
+        fundamentals_snapshot_evidence = fundamentals_snapshot_to_evidence(fundamentals)
     merged = merge_evidence_sets(
+        fundamentals_snapshot_evidence,
         state.get("fundamentals_evidence", []),
         state.get("sentiment_evidence", []),
         state.get("risk_evidence", []),
@@ -300,11 +312,13 @@ def aggregate_evidence_node(state: ResearchState) -> dict:
 def _analyst_prompt(state: ResearchState, evidence_key: str) -> str:
     fundamentals = state.get("fundamentals")
     evidence = state.get(evidence_key, [])
+    fundamentals_evidence: list[EvidenceRecord] = []
     if isinstance(fundamentals, FundamentalsSnapshot):
         fundamentals_block = fundamentals.model_dump_json(indent=2)
+        fundamentals_evidence = fundamentals_snapshot_to_evidence(fundamentals)
     else:
         fundamentals_block = "No fundamentals."
-    evidence_block = build_evidence_context(evidence)
+    evidence_block = build_evidence_context(merge_evidence_sets(fundamentals_evidence, evidence))
     return (
         f"Plan:\n{state.get('plan', '')}\n\n"
         f"Fundamentals:\n{fundamentals_block}\n\n"
@@ -891,17 +905,137 @@ def _structured_grounding_summary(metrics: dict[str, object]) -> str:
     )
 
 
+def _render_thesis_grounding_packet(state: ResearchState) -> str:
+    lookup = _collect_evidence_lookup(state)
+    thesis_preparation = state.get("thesis_preparation")
+    if not isinstance(thesis_preparation, ThesisPreparation):
+        return "No thesis preparation."
+
+    sections: list[str] = []
+    for section in thesis_preparation.sections:
+        lines = [
+            f"Section ID: {section.section_id}",
+            f"Section: {section.title}",
+            f"Objective: {section.objective}",
+            (
+                "Allowed section evidence ids: "
+                + (
+                    ", ".join(f"[source:{source_id}]" for source_id in section.evidence_ids)
+                    if section.evidence_ids
+                    else "none"
+                )
+            ),
+        ]
+        if not section.findings:
+            lines.append("Findings: none")
+            sections.append("\n".join(lines))
+            continue
+
+        lines.append("Findings:")
+        for idx, finding in enumerate(section.findings, start=1):
+            citations = (
+                ", ".join(f"[source:{source_id}]" for source_id in finding.evidence_ids)
+                if finding.evidence_ids
+                else "no evidence ids"
+            )
+            lines.append(
+                f"{idx}. finding={finding.finding}"
+            )
+            lines.append(f"   analyst={finding.analyst}")
+            lines.append(f"   confidence={finding.confidence:.2f}")
+            lines.append(f"   allowed_evidence_ids={citations}")
+            if finding.finding_type:
+                lines.append(f"   finding_type={finding.finding_type}")
+            if finding.missing_data:
+                lines.append(
+                    "   missing_data="
+                    + ", ".join(item.strip() for item in finding.missing_data if item.strip())
+                )
+            for source_id in finding.evidence_ids[:2]:
+                record = lookup.get(source_id)
+                if record is None:
+                    continue
+                lines.append(
+                    f"   snippet [source:{record.source_id}] {record.document_type} | "
+                    f"{record.title} | {record.content[:240]}"
+                )
+        sections.append("\n".join(lines))
+    return "\n\n".join(sections)
+
+
+def _report_lines_with_uncited_numeric_claims(report: str) -> list[str]:
+    flagged: list[str] = []
+    for raw_line in report.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "evidence not provided" in line.lower():
+            continue
+        if not NUMERIC_TOKEN_RE.search(line):
+            continue
+        if not INLINE_SOURCE_CITATION_RE.search(line):
+            flagged.append(line)
+    return flagged
+
+
+def _report_placeholder_count(report: str) -> int:
+    return report.lower().count("evidence not provided")
+
+
+def _report_lines_with_malformed_citations(report: str) -> list[str]:
+    flagged: list[str] = []
+    for raw_line in report.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if MALFORMED_SOURCE_CITATION_RE.search(line):
+            flagged.append(line)
+    return flagged
+
+
+def validate_thesis_report(report: str) -> list[str]:
+    errors: list[str] = []
+    if "evidence not provided" in report.lower():
+        errors.append("Report contains prohibited placeholder text `evidence not provided`.")
+
+    malformed_citation_lines = _report_lines_with_malformed_citations(report)
+    if malformed_citation_lines:
+        preview = "; ".join(malformed_citation_lines[:3])
+        errors.append(
+            "Report contains malformed citations; use exact `[source:<id>]` syntax only: "
+            f"{preview}"
+        )
+
+    uncited_numeric_lines = _report_lines_with_uncited_numeric_claims(report)
+    if uncited_numeric_lines:
+        preview = "; ".join(uncited_numeric_lines[:3])
+        errors.append(f"Report contains uncited numeric claims: {preview}")
+    return errors
+
+
+def _repair_feedback_payload(state: ResearchState) -> str:
+    verification_metrics = state.get("verification_metrics", {})
+    unsupported_labels = verification_metrics.get("unsupported_labels", [])
+    if isinstance(unsupported_labels, list):
+        unsupported_preview = ", ".join(str(label) for label in unsupported_labels) or "none"
+    else:
+        unsupported_preview = "none"
+
+    return (
+        f"Prior verification status: {state.get('verification_status', 'unknown')}\n"
+        f"Repair attempted already: {bool(state.get('repair_attempted', False))}\n"
+        f"Unsupported finding labels: {unsupported_preview}\n\n"
+        f"Verifier summary:\n{state.get('verification_summary', '')}\n\n"
+        f"Original thesis:\n{state.get('report', '')}"
+    )
+
+
 def thesis_node(state: ResearchState) -> dict:
+    if state.get("repair_attempted") and state.get("report"):
+        return {"report": str(state.get("report", ""))}
+
     model = _get_model()
     started_at = perf_counter()
-    evidence = state.get("retrieved_evidence", [])
-    evidence_ids = ", ".join(record.source_id for record in evidence) if evidence else "none"
-    thesis_preparation = state.get("thesis_preparation")
-    thesis_input_block = (
-        thesis_preparation.model_dump_json(indent=2)
-        if isinstance(thesis_preparation, ThesisPreparation)
-        else "No thesis preparation."
-    )
     response = model.invoke(
         [
             SystemMessage(content=THESIS_PROMPT),
@@ -911,13 +1045,21 @@ def thesis_node(state: ResearchState) -> dict:
                     f"Question: {state['question']}\n"
                     f"Plan:\n{state.get('plan', '')}\n\n"
                     f"Contradictions:\n{state.get('contradiction_summary', 'None.')}\n\n"
-                    f"Prepared Thesis Sections:\n{thesis_input_block}\n\n"
-                    f"Available source ids: {evidence_ids}"
+                    "Use the grounding packet below as the primary synthesis input.\n"
+                    "Do not reconstruct the thesis from raw JSON assumptions.\n"
+                    "Only use evidence ids that appear in the grounding packet.\n"
+                    "Every numeric claim must include an inline citation in the exact format "
+                    "[source:<id>]. If a claim is not supported, omit it.\n"
+                    "Never write `evidence not provided` or any equivalent placeholder.\n\n"
+                    f"Section Grounding Packet:\n{_render_thesis_grounding_packet(state)}"
                 )
             ),
         ]
     )
-    return {
+    validation_errors = validate_thesis_report(str(response.content))
+    if validation_errors:
+        raise ValueError("Synthesis validation failed: " + " ".join(validation_errors))
+    result = {
         "report": response.content,
         "node_metrics": _record_node_metrics(
             state,
@@ -928,22 +1070,56 @@ def thesis_node(state: ResearchState) -> dict:
             temperature=float(model.temperature or 0),
         ),
     }
+    if not state.get("initial_report"):
+        result["initial_report"] = response.content
+    return result
 
 
-def verifier_node(state: ResearchState) -> dict:
-    settings = get_settings()
+def _run_thesis_repair(state: ResearchState) -> tuple[str, dict[str, dict[str, object]]]:
     model = _get_model()
     started_at = perf_counter()
+    response = model.invoke(
+        [
+            SystemMessage(content=THESIS_REPAIR_PROMPT),
+            HumanMessage(
+                content=(
+                    f"Ticker: {state['ticker']}\n"
+                    f"Question: {state['question']}\n"
+                    f"Plan:\n{state.get('plan', '')}\n\n"
+                    f"Contradictions:\n{state.get('contradiction_summary', 'None.')}\n\n"
+                    f"Repair feedback:\n{_repair_feedback_payload(state)}\n\n"
+                    f"Section Grounding Packet:\n{_render_thesis_grounding_packet(state)}"
+                )
+            ),
+        ]
+    )
+    validation_errors = validate_thesis_report(str(response.content))
+    if validation_errors:
+        raise ValueError("Repair validation failed: " + " ".join(validation_errors))
+    node_metrics = _record_node_metrics(
+        state,
+        node_name="thesis_repair",
+        response=response,
+        started_at=started_at,
+        model_name=model.model_name,
+        temperature=float(model.temperature or 0),
+    )
+    return str(response.content), node_metrics
+
+
+def _run_verifier_pass(
+    state: ResearchState,
+    *,
+    report: str,
+) -> tuple[dict[str, object], object]:
+    settings = get_settings()
+    model = _get_model()
     evidence = state.get("retrieved_evidence", [])
     source_ids = [record.source_id for record in evidence]
-    report = state.get("report", "")
     cited_source_ids = _extract_cited_source_ids(report)
     cited_count = sum(1 for source_id in source_ids if source_id in cited_source_ids)
     coverage = cited_count / len(source_ids) if source_ids else 0.0
-    structured_findings = sum(
-        len(analysis.findings)
-        for _, analysis in _iter_analyses(state)
-    )
+    structured_findings = sum(len(analysis.findings) for _, analysis in _iter_analyses(state))
     contradictions = state.get("contradictions", [])
     missing_data_count = sum(
         len(finding.missing_data)
@@ -952,12 +1128,18 @@ def verifier_node(state: ResearchState) -> dict:
     )
     grounding_metrics = _structured_grounding_metrics(state, report)
     grounding_summary = _structured_grounding_summary(grounding_metrics)
+    malformed_citation_count = len(_report_lines_with_malformed_citations(report))
+    uncited_numeric_claim_count = len(_report_lines_with_uncited_numeric_claims(report))
+    prohibited_placeholder_count = _report_placeholder_count(report)
     unsupported_findings = int(grounding_metrics.get("unsupported_findings", 0))
     partially_grounded_findings = int(grounding_metrics.get("partially_grounded_findings", 0))
     deterministic_status = (
         "fail"
         if unsupported_findings > settings.verifier_max_unsupported_findings
         or partially_grounded_findings > settings.verifier_max_partially_grounded_findings
+        or malformed_citation_count > 0
+        or uncited_numeric_claim_count > 0
+        or prohibited_placeholder_count > 0
         else "pass"
     )
     heuristic_summary = (
@@ -980,7 +1162,7 @@ def verifier_node(state: ResearchState) -> dict:
                     f"Sentiment Analysis:\n{_analysis_block(state, 'sentiment_analysis')}\n\n"
                     f"Risk Analysis:\n{_analysis_block(state, 'risk_analysis')}\n\n"
                     f"Contradiction Summary:\n{state.get('contradiction_summary', 'None.')}\n\n"
-                    f"Report:\n{state.get('report', '')}"
+                    f"Report:\n{report}"
                 )
             ),
         ]
@@ -993,21 +1175,79 @@ def verifier_node(state: ResearchState) -> dict:
         "missing_data_flags": missing_data_count,
         "cited_retrieved_sources": cited_count,
         "citation_coverage": coverage,
+        "malformed_citation_count": malformed_citation_count,
+        "uncited_numeric_claim_count": uncited_numeric_claim_count,
+        "prohibited_placeholder_count": prohibited_placeholder_count,
         "deterministic_status": deterministic_status,
+        "repair_attempted": bool(state.get("repair_attempted", False)),
     }
-    return {
-        "verification_status": deterministic_status,
-        "verification_metrics": verification_metrics,
-        "verification_summary": f"{heuristic_summary}\n\n{response.content}",
-        "node_metrics": _record_node_metrics(
+    return (
+        {
+            "verification_status": deterministic_status,
+            "verification_metrics": verification_metrics,
+            "verification_summary": f"{heuristic_summary}\n\n{response.content}",
+        },
+        response,
+    )
+
+
+def verifier_node(state: ResearchState) -> dict:
+    if (
+        state.get("repair_attempted")
+        and str(state.get("verification_status", "")).lower() == "pass"
+    ):
+        return {
+            "verification_status": str(state.get("verification_status", "unknown")),
+            "verification_metrics": dict(state.get("verification_metrics", {})),
+            "verification_summary": str(state.get("verification_summary", "")),
+            "report": str(state.get("report", "")),
+        }
+
+    started_at = perf_counter()
+    report = str(state.get("report", ""))
+    verification_result, raw_response = _run_verifier_pass(state, report=report)
+
+    result: dict[str, object] = dict(verification_result)
+    if (
+        str(verification_result.get("verification_status", "unknown")).lower() == "fail"
+        and not bool(state.get("repair_attempted", False))
+    ):
+        initial_verification_summary = str(verification_result.get("verification_summary", ""))
+        repaired_report, repair_metrics = _run_thesis_repair(
             state,
-            node_name="verifier",
-            response=response,
-            started_at=started_at,
-            model_name=model.model_name,
-            temperature=float(model.temperature or 0),
-        ),
-    }
+        )
+        repaired_state = dict(state)
+        repaired_state["report"] = repaired_report
+        repaired_state["repair_attempted"] = True
+        repaired_state["repair_reason"] = initial_verification_summary
+        repaired_state["repair_summary"] = "Applied one verifier-driven grounding repair pass."
+        repaired_state["node_metrics"] = repair_metrics
+        verification_result, raw_response = _run_verifier_pass(
+            repaired_state,
+            report=repaired_report,
+        )
+        result = {
+            "report": repaired_report,
+            "repair_attempted": True,
+            "repair_reason": initial_verification_summary,
+            "repair_summary": "Applied one verifier-driven grounding repair pass.",
+            "node_metrics": repair_metrics,
+            **verification_result,
+        }
+
+    result["node_metrics"] = _record_node_metrics(
+        {
+            "node_metrics": result.get("node_metrics", {})
+            or state.get("node_metrics", {})
+            or {}
+        },
+        node_name="verifier",
+        response=raw_response,
+        started_at=started_at,
+        model_name=get_settings().model_name,
+        temperature=0.0,
+    )
+    return result
 
 
 def build_app():

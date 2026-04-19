@@ -5,6 +5,7 @@ from stock_agent_rag.workflow import (
     _extract_cited_source_ids,
     _structured_grounding_metrics,
     _structured_grounding_summary,
+    validate_thesis_report,
 )
 
 
@@ -56,3 +57,35 @@ def test_structured_grounding_summary_counts_grounded_and_unsupported_findings()
     assert "partially_grounded_findings=1" in summary
     assert "unsupported_findings=1" in summary
     assert "findings_without_evidence_ids=1" in summary
+
+
+def test_validate_thesis_report_flags_uncited_numeric_claims() -> None:
+    report = "Revenue grew 73.2% year over year without a citation."
+
+    errors = validate_thesis_report(report)
+
+    assert any("uncited numeric claims" in error for error in errors)
+
+
+def test_validate_thesis_report_flags_prohibited_placeholder_text() -> None:
+    report = "Debt to equity is elevated (evidence not provided)."
+
+    errors = validate_thesis_report(report)
+
+    assert any("evidence not provided" in error for error in errors)
+
+
+def test_validate_thesis_report_flags_malformed_source_citations() -> None:
+    report = "Revenue grew 73.2% year over year (source:filing-1)."
+
+    errors = validate_thesis_report(report)
+
+    assert any("malformed citations" in error for error in errors)
+
+
+def test_validate_thesis_report_allows_cited_numeric_claims() -> None:
+    report = "Revenue grew 73.2% year over year [source:filing-1]."
+
+    errors = validate_thesis_report(report)
+
+    assert errors == []

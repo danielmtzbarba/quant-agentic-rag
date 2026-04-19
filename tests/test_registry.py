@@ -78,6 +78,68 @@ def test_registry_persists_document_chunk_and_run() -> None:
         assert session.scalar(select(IngestionRunORM.status)) == "completed"
 
 
+def test_registry_persists_news_quality_metadata() -> None:
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+
+    with Session(engine, expire_on_commit=False) as session:
+        service = RegistryService(session)
+        document = DocumentRecord(
+            document_id="nvda-news-test",
+            source_type="news",
+            ticker="NVDA",
+            title="NVIDIA wins enterprise deployment",
+            provider="alpha_vantage",
+            published_at=datetime(2026, 4, 18, tzinfo=UTC),
+            raw_checksum="abc123",
+            raw_path="/tmp/raw.json",
+            cleaned_text="NVIDIA wins enterprise deployment.",
+            publisher="Reuters",
+            sentiment_label="Bullish",
+            sentiment_score=0.5,
+            ticker_relevance_score=0.9,
+            entity_title_match=True,
+            entity_body_match=True,
+            news_relevance_score=1.0,
+            news_relevance_tier="direct",
+            source_quality_tier="trusted",
+        )
+        chunk = EvidenceChunk(
+            chunk_id="nvda-news-test-000",
+            source_id="nvda-news-test-000",
+            document_id=document.document_id,
+            ticker="NVDA",
+            title=document.title,
+            content=document.cleaned_text,
+            document_type="news",
+            provider=document.provider,
+            chunk_index=0,
+            publisher=document.publisher,
+            sentiment_label=document.sentiment_label,
+            sentiment_score=document.sentiment_score,
+            ticker_relevance_score=document.ticker_relevance_score,
+            entity_title_match=document.entity_title_match,
+            entity_body_match=document.entity_body_match,
+            news_relevance_score=document.news_relevance_score,
+            news_relevance_tier=document.news_relevance_tier,
+            source_quality_tier=document.source_quality_tier,
+        )
+
+        service.upsert_document(document=document, normalized_path="/tmp/news.json")
+        service.upsert_chunks(chunks=[chunk], chunk_path="/tmp/news.jsonl")
+
+        persisted_document = session.scalar(select(DocumentORM))
+        persisted_chunk = session.scalar(select(ChunkORM))
+
+        assert persisted_document is not None
+        assert persisted_document.news_relevance_tier == "direct"
+        assert persisted_document.source_quality_tier == "trusted"
+        assert persisted_document.entity_title_match is True
+        assert persisted_chunk is not None
+        assert persisted_chunk.news_relevance_score == 1.0
+        assert persisted_chunk.source_quality_tier == "trusted"
+
+
 def test_complete_ingestion_run_recovers_from_failed_session_state() -> None:
     engine = create_engine("sqlite:///:memory:", future=True)
     Base.metadata.create_all(engine)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,6 +21,43 @@ from ..registry import RegistryService
 from ..schemas import DocumentRecord, EvidenceChunk
 
 logger = get_logger(__name__)
+
+DEFAULT_TICKER_ENTITY_ALIASES: dict[str, tuple[str, ...]] = {
+    "AAPL": ("apple", "apple inc", "apple inc."),
+    "AMD": ("advanced micro devices", "amd"),
+    "AMZN": ("amazon", "amazon.com", "amazon.com inc"),
+    "GOOG": ("google", "alphabet", "alphabet inc", "google llc"),
+    "GOOGL": ("google", "alphabet", "alphabet inc", "google llc"),
+    "INTC": ("intel", "intel corporation"),
+    "META": ("meta", "meta platforms", "facebook"),
+    "MSFT": ("microsoft", "microsoft corporation"),
+    "NVDA": ("nvidia", "nvidia corporation"),
+    "TSLA": ("tesla", "tesla inc", "tesla motors"),
+}
+TRUSTED_NEWS_SOURCES = {
+    "associated press",
+    "ap",
+    "bloomberg",
+    "cnbc",
+    "financial times",
+    "ft",
+    "reuters",
+    "the wall street journal",
+    "wall street journal",
+    "wsj",
+}
+STANDARD_NEWS_SOURCES = {
+    "barron's",
+    "benzinga",
+    "fortune",
+    "investor's business daily",
+    "marketwatch",
+    "motley fool",
+    "seeking alpha",
+    "the globe and mail",
+    "tradingkey",
+    "yahoo finance",
+}
 
 
 class AlphaVantageNewsArticle(BaseModel):
@@ -75,6 +113,16 @@ class IngestionSummary:
     chunk_count: int
     normalized_paths: list[str]
     chunk_paths: list[str]
+
+
+@dataclass(frozen=True, slots=True)
+class NewsRelevanceAssessment:
+    ticker_relevance_score: float
+    entity_title_match: bool
+    entity_body_match: bool
+    news_relevance_score: float
+    news_relevance_tier: str
+    source_quality_tier: str
 
 
 class AlphaVantageNewsIngestionService:
@@ -303,7 +351,8 @@ class AlphaVantageNewsIngestionService:
                     extra={"ticker": ticker, "error": str(exc)},
                 )
                 continue
-            if not self._article_mentions_ticker(item, ticker):
+            assessment = self._assess_article_relevance(article=article, ticker=ticker)
+            if assessment is None:
                 continue
             articles.append(article)
 
@@ -311,16 +360,53 @@ class AlphaVantageNewsIngestionService:
             raise RuntimeError(f"Alpha Vantage returned no news articles for {ticker}.")
         return articles
 
-    def _article_mentions_ticker(self, item: object, ticker: str) -> bool:
-        if not isinstance(item, dict):
-            return False
-        sentiments = item.get("ticker_sentiment")
-        if not isinstance(sentiments, list):
-            return True
-        for sentiment in sentiments:
-            if isinstance(sentiment, dict) and str(sentiment.get("ticker", "")).upper() == ticker:
-                return True
-        return False
+    def _assess_article_relevance(
+        self,
+        *,
+        article: AlphaVantageNewsArticle,
+        ticker: str,
+    ) -> NewsRelevanceAssessment | None:
+        title_text = article.title.lower()
+        body_text = f"{article.title}\n{article.summary or ''}".lower()
+        aliases = self._entity_aliases(ticker)
+        entity_title_match = any(self._contains_alias(title_text, alias) for alias in aliases)
+        entity_body_match = any(self._contains_alias(body_text, alias) for alias in aliases)
+        ticker_relevance_score = self._ticker_relevance_score(article=article, ticker=ticker)
+        source_quality_tier = self._source_quality_tier(article.source)
+
+        if not entity_title_match and not entity_body_match:
+            logger.info(
+                "skipping off-ticker news article",
+                extra={
+                    "ticker": ticker,
+                    "title": article.title,
+                    "publisher": article.source,
+                    "ticker_relevance_score": ticker_relevance_score,
+                },
+            )
+            return None
+
+        news_relevance_score = min(
+            1.0,
+            (0.65 if entity_title_match else 0.0)
+            + (0.25 if entity_body_match else 0.0)
+            + 0.10 * ticker_relevance_score,
+        )
+        if entity_title_match:
+            news_relevance_tier = "direct"
+        elif entity_body_match:
+            news_relevance_tier = "body_only"
+        else:
+            news_relevance_tier = "indirect"
+
+        return NewsRelevanceAssessment(
+            ticker_relevance_score=ticker_relevance_score,
+            entity_title_match=entity_title_match,
+            entity_body_match=entity_body_match,
+            news_relevance_score=news_relevance_score,
+            news_relevance_tier=news_relevance_tier,
+            source_quality_tier=source_quality_tier,
+        )
 
     def _build_document_record(
         self,
@@ -333,7 +419,13 @@ class AlphaVantageNewsIngestionService:
         title_hash = self._checksum(f"{ticker}:{article.url}")[:12]
         document_id = f"{ticker.lower()}-news-{title_hash}"
         sentiment_score = self._to_float(article.overall_sentiment_score)
-        cleaned_text = self._build_article_text(article=article)
+        assessment = self._assess_article_relevance(article=article, ticker=ticker)
+        if assessment is None:
+            raise RuntimeError(
+                "news relevance validation failed for article "
+                f"`{article.title}` and ticker {ticker}"
+            )
+        cleaned_text = self._build_article_text(article=article, assessment=assessment)
 
         return DocumentRecord(
             document_id=document_id,
@@ -353,6 +445,12 @@ class AlphaVantageNewsIngestionService:
             publisher=article.source,
             sentiment_label=article.overall_sentiment_label,
             sentiment_score=sentiment_score,
+            ticker_relevance_score=assessment.ticker_relevance_score,
+            entity_title_match=assessment.entity_title_match,
+            entity_body_match=assessment.entity_body_match,
+            news_relevance_score=assessment.news_relevance_score,
+            news_relevance_tier=assessment.news_relevance_tier,
+            source_quality_tier=assessment.source_quality_tier,
         )
 
     def _chunk_document(self, document: DocumentRecord) -> list[EvidenceChunk]:
@@ -373,6 +471,12 @@ class AlphaVantageNewsIngestionService:
                 publisher=document.publisher,
                 sentiment_label=document.sentiment_label,
                 sentiment_score=document.sentiment_score,
+                ticker_relevance_score=document.ticker_relevance_score,
+                entity_title_match=document.entity_title_match,
+                entity_body_match=document.entity_body_match,
+                news_relevance_score=document.news_relevance_score,
+                news_relevance_tier=document.news_relevance_tier,
+                source_quality_tier=document.source_quality_tier,
             )
         ]
 
@@ -421,7 +525,12 @@ class AlphaVantageNewsIngestionService:
         )
         return str(output_path)
 
-    def _build_article_text(self, *, article: AlphaVantageNewsArticle) -> str:
+    def _build_article_text(
+        self,
+        *,
+        article: AlphaVantageNewsArticle,
+        assessment: NewsRelevanceAssessment | None = None,
+    ) -> str:
         parts = [f"Headline: {article.title}"]
         if article.source:
             parts.append(f"Publisher: {article.source}")
@@ -432,7 +541,54 @@ class AlphaVantageNewsIngestionService:
             parts.append(f"Sentiment score: {score}")
         if article.summary:
             parts.append(f"Summary: {article.summary}")
+        if assessment is not None:
+            parts.append(f"Ticker relevance score: {assessment.ticker_relevance_score}")
+            parts.append(f"Entity title match: {assessment.entity_title_match}")
+            parts.append(f"Entity body match: {assessment.entity_body_match}")
+            parts.append(f"News relevance score: {assessment.news_relevance_score}")
+            parts.append(f"News relevance tier: {assessment.news_relevance_tier}")
+            parts.append(f"Source quality tier: {assessment.source_quality_tier}")
         return "\n".join(parts)
+
+    def _entity_aliases(self, ticker: str) -> tuple[str, ...]:
+        aliases = [ticker.lower(), f"${ticker.lower()}"]
+        aliases.extend(DEFAULT_TICKER_ENTITY_ALIASES.get(ticker.upper(), ()))
+        # Preserve order while removing duplicates and empty entries.
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for alias in aliases:
+            normalized = alias.strip().lower()
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            deduped.append(normalized)
+        return tuple(deduped)
+
+    def _contains_alias(self, text: str, alias: str) -> bool:
+        alias = alias.strip().lower()
+        if not alias:
+            return False
+        if " " in alias or "." in alias:
+            return alias in text
+        return re.search(rf"(?<![A-Za-z0-9]){re.escape(alias)}(?![A-Za-z0-9])", text) is not None
+
+    def _ticker_relevance_score(self, *, article: AlphaVantageNewsArticle, ticker: str) -> float:
+        best = 0.0
+        for sentiment in article.ticker_sentiment:
+            if not isinstance(sentiment, dict):
+                continue
+            if str(sentiment.get("ticker", "")).upper() != ticker.upper():
+                continue
+            best = max(best, self._to_float(sentiment.get("relevance_score")) or 0.0)
+        return min(max(best, 0.0), 1.0)
+
+    def _source_quality_tier(self, publisher: str | None) -> str:
+        normalized = (publisher or "").strip().lower()
+        if normalized in TRUSTED_NEWS_SOURCES:
+            return "trusted"
+        if normalized in STANDARD_NEWS_SOURCES:
+            return "standard"
+        return "low"
 
     def _parse_datetime(self, value: object) -> datetime | None:
         if not value:

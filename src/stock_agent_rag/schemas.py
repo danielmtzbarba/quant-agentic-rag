@@ -29,6 +29,12 @@ class EvidenceRecord(BaseModel):
     publisher: str | None = None
     sentiment_label: str | None = None
     sentiment_score: float | None = None
+    ticker_relevance_score: float | None = None
+    entity_title_match: bool | None = None
+    entity_body_match: bool | None = None
+    news_relevance_score: float | None = None
+    news_relevance_tier: str | None = None
+    source_quality_tier: str | None = None
 
 
 class FundamentalsSnapshot(BaseModel):
@@ -117,9 +123,13 @@ class ResearchState(TypedDict, total=False):
     sentiment_notes: Annotated[str, replace_value]
     risk_notes: Annotated[str, replace_value]
     report: Annotated[str, replace_value]
+    initial_report: Annotated[str, replace_value]
     verification_status: Annotated[str, replace_value]
     verification_metrics: Annotated[dict[str, object], replace_value]
     verification_summary: Annotated[str, replace_value]
+    repair_attempted: Annotated[bool, replace_value]
+    repair_reason: Annotated[str, replace_value]
+    repair_summary: Annotated[str, replace_value]
 
 
 class ResearchRequest(BaseModel):
@@ -214,6 +224,12 @@ class DocumentRecord(BaseModel):
     publisher: str | None = None
     sentiment_label: str | None = None
     sentiment_score: float | None = None
+    ticker_relevance_score: float | None = None
+    entity_title_match: bool | None = None
+    entity_body_match: bool | None = None
+    news_relevance_score: float | None = None
+    news_relevance_tier: str | None = None
+    source_quality_tier: str | None = None
     sections: list[FilingSection] = Field(default_factory=list)
     transcript_turns: list[TranscriptTurn] = Field(default_factory=list)
 
@@ -242,3 +258,9 @@ class EvidenceChunk(BaseModel):
     publisher: str | None = None
     sentiment_label: str | None = None
     sentiment_score: float | None = None
+    ticker_relevance_score: float | None = None
+    entity_title_match: bool | None = None
+    entity_body_match: bool | None = None
+    news_relevance_score: float | None = None
+    news_relevance_tier: str | None = None
+    source_quality_tier: str | None = None

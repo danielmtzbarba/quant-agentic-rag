@@ -56,6 +56,7 @@ class ResearchService:
                 risk_evidence=result.get("risk_evidence", []),
                 retrieved_evidence=result.get("retrieved_evidence", []),
                 default_top_k=int(getattr(settings, "default_top_k", 4)),
+                target_ticker=ticker,
             )
             result["token_usage"] = token_usage
             result["model_metadata"] = model_metadata

@@ -956,6 +956,12 @@ def _row_to_record(row: ChunkORM) -> EvidenceRecord:
         publisher=row.publisher,
         sentiment_label=row.sentiment_label,
         sentiment_score=row.sentiment_score,
+        ticker_relevance_score=row.ticker_relevance_score,
+        entity_title_match=row.entity_title_match,
+        entity_body_match=row.entity_body_match,
+        news_relevance_score=row.news_relevance_score,
+        news_relevance_tier=row.news_relevance_tier,
+        source_quality_tier=row.source_quality_tier,
     )
 
 
@@ -969,7 +975,9 @@ def _term_overlap_score(query_terms: set[str], record: EvidenceRecord) -> float:
         f"{record.content}\n"
         f"{record.section}\n"
         f"{record.speaker_role}\n"
-        f"{record.publisher}"
+        f"{record.publisher}\n"
+        f"{record.news_relevance_tier}\n"
+        f"{record.source_quality_tier}"
     ).lower()
     return float(sum(term in haystack for term in query_terms))
 
@@ -990,6 +998,18 @@ def _metadata_match_score(record: EvidenceRecord, profile: RetrievalProfile) -> 
         token in record.speaker_role.lower() for token in profile.speaker_role_tokens
     ):
         score += 0.25
+    if record.document_type == "news":
+        score += min(float(record.news_relevance_score or 0.0), 1.0) * 0.8
+        if record.entity_title_match:
+            score += 0.6
+        elif record.entity_body_match:
+            score += 0.25
+        if record.source_quality_tier == "trusted":
+            score += 0.25
+        elif record.source_quality_tier == "standard":
+            score += 0.1
+        elif record.source_quality_tier == "low":
+            score -= 0.15
     return score
 
 
@@ -1095,6 +1115,19 @@ def _ensure_utc(value: datetime) -> datetime:
 
 
 def _document_priority_score(record: EvidenceRecord, profile: RetrievalProfile) -> float:
+    if record.document_type == "news":
+        priority = 0.0
+        if record.entity_title_match:
+            priority += 0.4
+        elif record.entity_body_match:
+            priority += 0.2
+        if record.source_quality_tier == "trusted":
+            priority += 0.2
+        elif record.source_quality_tier == "standard":
+            priority += 0.1
+        else:
+            priority -= 0.1
+        return max(priority, 0.0)
     for idx, doc_type in enumerate(profile.preferred_doc_order):
         if record.document_type == doc_type:
             return max(0.0, 1.0 - idx * 0.2)

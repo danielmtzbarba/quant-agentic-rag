@@ -31,6 +31,16 @@ SAMPLE_NEWS_PAYLOAD = {
             "overall_sentiment_label": "Neutral",
             "ticker_sentiment": [{"ticker": "NVDA", "relevance_score": "0.8"}],
         },
+        {
+            "title": "Intel expands AI laptop lineup",
+            "url": "https://example.com/intel-ai-laptops",
+            "time_published": "20260416T140000",
+            "summary": "Intel highlighted stronger PC demand and battery performance.",
+            "source": "Reuters",
+            "overall_sentiment_score": "0.15",
+            "overall_sentiment_label": "Somewhat-Bullish",
+            "ticker_sentiment": [{"ticker": "NVDA", "relevance_score": "0.9"}],
+        },
     ]
 }
 
@@ -42,6 +52,7 @@ def test_extract_articles_filters_and_validates() -> None:
 
     assert len(articles) == 2
     assert articles[0].source == "Reuters"
+    assert all("Intel expands" not in article.title for article in articles)
 
 
 def test_ingest_news_writes_normalized_and_chunk_files(tmp_path: Path) -> None:
@@ -77,11 +88,16 @@ def test_ingest_news_writes_normalized_and_chunk_files(tmp_path: Path) -> None:
     assert normalized_payload["source_type"] == "news"
     assert normalized_payload["publisher"] == "Reuters"
     assert normalized_payload["sentiment_label"] == "Bullish"
+    assert normalized_payload["entity_title_match"] is True
+    assert normalized_payload["news_relevance_tier"] == "direct"
+    assert normalized_payload["source_quality_tier"] == "trusted"
 
     chunk_lines = [json.loads(line) for line in chunk_path.read_text(encoding="utf-8").splitlines()]
     assert chunk_lines[0]["document_type"] == "news"
     assert chunk_lines[0]["publisher"] == "Reuters"
     assert chunk_lines[0]["sentiment_score"] == 0.42
+    assert chunk_lines[0]["news_relevance_score"] >= 0.7
+    assert chunk_lines[0]["source_quality_tier"] == "trusted"
 
 
 def test_ingest_news_uses_cache_when_raw_exists(tmp_path: Path) -> None:
@@ -111,3 +127,29 @@ def test_ingest_news_uses_cache_when_raw_exists(tmp_path: Path) -> None:
     summary = service.ingest(ticker="NVDA", limit=2)
     assert summary.processed_documents == 2
     assert summary.chunk_count == 2
+
+
+def test_assess_article_relevance_requires_direct_entity_mention() -> None:
+    service = AlphaVantageNewsIngestionService(settings=Settings(VANTAGE_API_KEY="test-key"))
+
+    direct_article = service._extract_articles(
+        {
+            "feed": [
+                {
+                    "title": "NVIDIA wins new hyperscaler deployment",
+                    "url": "https://example.com/nvda-direct",
+                    "time_published": "20260416T120000",
+                    "summary": "NVIDIA said enterprise demand remains strong.",
+                    "source": "Reuters",
+                    "ticker_sentiment": [{"ticker": "NVDA", "relevance_score": "0.95"}],
+                }
+            ]
+        },
+        ticker="NVDA",
+    )[0]
+    assessment = service._assess_article_relevance(article=direct_article, ticker="NVDA")
+
+    assert assessment is not None
+    assert assessment.entity_title_match is True
+    assert assessment.news_relevance_tier == "direct"
+    assert assessment.source_quality_tier == "trusted"

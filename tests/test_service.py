@@ -59,4 +59,5 @@ def test_research_service_maps_graph_output() -> None:
     }
     assert result.runtime_metrics == {"retry_count": 1, "timeout_count": 0}
     assert result.retrieval_metrics["merged_retrieved_count"] == 0
+    assert result.retrieval_metrics["off_ticker_evidence_count"] == 0
     assert result.estimated_cost_usd == 0.000123

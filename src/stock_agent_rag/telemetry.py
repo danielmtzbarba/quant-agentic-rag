@@ -105,10 +105,12 @@ def build_retrieval_metrics(
     risk_evidence: list[EvidenceRecord],
     retrieved_evidence: list[EvidenceRecord],
     default_top_k: int,
+    target_ticker: str | None = None,
 ) -> dict[str, object]:
     source_type_counts: dict[str, int] = {}
     document_ids: set[str] = set()
     publishers: set[str] = set()
+    off_ticker_evidence_count = 0
     for record in retrieved_evidence:
         source_type_counts[record.document_type] = (
             source_type_counts.get(record.document_type, 0) + 1
@@ -117,6 +119,8 @@ def build_retrieval_metrics(
             document_ids.add(record.document_id)
         if record.publisher:
             publishers.add(record.publisher)
+        if _is_off_ticker_record(record, target_ticker=target_ticker):
+            off_ticker_evidence_count += 1
 
     freshness_metrics = _build_freshness_metrics(retrieved_evidence)
     return {
@@ -138,8 +142,33 @@ def build_retrieval_metrics(
         "source_type_counts": source_type_counts,
         "unique_document_count": len(document_ids),
         "unique_publisher_count": len(publishers),
+        "off_ticker_evidence_count": off_ticker_evidence_count,
+        "off_ticker_evidence_rate": round(
+            _safe_ratio(off_ticker_evidence_count, len(retrieved_evidence)),
+            4,
+        ),
         **freshness_metrics,
     }
+
+
+def _is_off_ticker_record(record: EvidenceRecord, *, target_ticker: str | None) -> bool:
+    normalized_target = (target_ticker or "").strip().upper()
+    normalized_record_ticker = record.ticker.strip().upper()
+    if (
+        normalized_target
+        and normalized_record_ticker
+        and normalized_record_ticker != normalized_target
+    ):
+        return True
+
+    if record.document_type != "news":
+        return False
+
+    title_match = record.entity_title_match
+    body_match = record.entity_body_match
+    if title_match is False and body_match is False:
+        return True
+    return False
 
 
 def _build_freshness_metrics(records: list[EvidenceRecord]) -> dict[str, object]:

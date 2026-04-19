@@ -10,6 +10,7 @@ import uvicorn
 from .api import create_app
 from .config import get_settings
 from .db import initialize_database
+from .evaluation import DEFAULT_GOLDEN_SET_PATH, evaluate_release_gates, load_golden_set
 from .indexing import ChunkIndexingService
 from .ingestion import (
     AlphaVantageNewsIngestionService,
@@ -26,6 +27,7 @@ from .supabase_bundle import (
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_SHARED_SUPABASE_BUNDLE_DIR = Path("/tmp/quant-supabase-bundle")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -42,6 +44,27 @@ def build_parser() -> argparse.ArgumentParser:
         "--question",
         default="Generate an evidence-backed investment thesis.",
         help="Research question for the workflow.",
+    )
+
+    release_gates_parser = subcommands.add_parser(
+        "release-gates",
+        help="Evaluate golden-set run outputs against release-gate thresholds.",
+    )
+    release_gates_parser.add_argument(
+        "--results",
+        required=True,
+        help="JSON file containing a list of workflow results or an object with `results`.",
+    )
+    release_gates_parser.add_argument(
+        "--golden-set",
+        default=str(DEFAULT_GOLDEN_SET_PATH),
+        help="Path to the golden-set manifest JSON.",
+    )
+    release_gates_parser.add_argument(
+        "--retrieval-k",
+        type=int,
+        default=5,
+        help="Top-k cutoff used for retrieval precision@k and recall@k.",
     )
 
     sec_parser = subcommands.add_parser("ingest-sec", help="Download and normalize SEC filings.")
@@ -160,6 +183,54 @@ def build_parser() -> argparse.ArgumentParser:
         help="When used with --push, include all local migrations missing from remote history.",
     )
 
+    push_shared_parser = subcommands.add_parser(
+        "push-shared-supabase",
+        help="Bundle shared Supabase migrations and push them in one step.",
+    )
+    push_shared_parser.add_argument(
+        "--core-repo",
+        required=True,
+        help=(
+            "Absolute or relative path to the core repository that owns "
+            "the main Supabase project."
+        ),
+    )
+    push_shared_parser.add_argument(
+        "--output-dir",
+        default=str(DEFAULT_SHARED_SUPABASE_BUNDLE_DIR),
+        help=(
+            "Directory where the merged Supabase workspace should be generated. "
+            f"Defaults to {DEFAULT_SHARED_SUPABASE_BUNDLE_DIR}."
+        ),
+    )
+    push_shared_parser.add_argument(
+        "--project-ref",
+        help="Optional Supabase project ref. If provided, the bundle is linked first.",
+    )
+    push_shared_parser.add_argument(
+        "--db-url",
+        help="Optional direct database URL to use for supabase db push instead of linking.",
+    )
+    push_shared_parser.add_argument(
+        "--password",
+        help="Optional database password passed through via SUPABASE_DB_PASSWORD.",
+    )
+    push_shared_parser.add_argument(
+        "--skip-pooler",
+        action="store_true",
+        help="Pass --skip-pooler when linking the generated Supabase workspace.",
+    )
+    push_shared_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the migrations that would be applied without applying them.",
+    )
+    push_shared_parser.add_argument(
+        "--include-all",
+        action="store_true",
+        help="Include all local migrations missing from remote history.",
+    )
+
     subcommands.add_parser("db-init", help="Create database tables for the registry layer.")
     return parser
 
@@ -189,6 +260,23 @@ def main() -> None:
         print(result.report)
         print("\n=== VERIFICATION ===\n")
         print(result.verification_summary)
+        return
+
+    if args.command == "release-gates":
+        payload = json.loads(Path(args.results).read_text(encoding="utf-8"))
+        if isinstance(payload, dict):
+            results = payload.get("results", [])
+        else:
+            results = payload
+        if not isinstance(results, list):
+            parser.error("--results must contain a JSON list or an object with a `results` list.")
+        evaluation = evaluate_release_gates(
+            results=[item for item in results if isinstance(item, dict)],
+            manifest=load_golden_set(args.golden_set),
+            retrieval_k=args.retrieval_k,
+        )
+        print("\n=== RELEASE GATES ===\n")
+        print(json.dumps(evaluation, indent=2, sort_keys=True))
         return
 
     if args.command == "ingest-sec":
@@ -249,37 +337,80 @@ def main() -> None:
             parser.error(
                 "bundle-supabase --push requires either --project-ref or --db-url."
             )
-        bundled = build_supabase_bundle(
+        _run_bundle_supabase(
             core_repo=Path(args.core_repo),
-            rag_repo=PROJECT_ROOT,
             output_dir=Path(args.output_dir),
+            project_ref=args.project_ref,
+            db_url=args.db_url,
+            password=args.password,
+            skip_pooler=args.skip_pooler,
+            push=args.push,
+            dry_run=args.dry_run,
+            include_all=args.include_all,
         )
-        bundle_path = Path(args.output_dir).resolve()
-        if args.push:
-            run_supabase_push(
-                SupabasePushRequest(
-                    bundle_dir=bundle_path,
-                    project_ref=args.project_ref,
-                    db_url=args.db_url,
-                    password=args.password,
-                    skip_pooler=args.skip_pooler,
-                    dry_run=args.dry_run,
-                    include_all=args.include_all,
-                )
-            )
-        print("\n=== SUPABASE BUNDLE ===\n")
-        print(f"Generated bundle in: {bundle_path}")
-        print(f"Migrations bundled: {len(bundled)}")
-        if args.push:
-            print("Supabase push completed from the generated bundle.")
-        else:
-            print("Run Supabase CLI from the generated workspace, for example:")
-            if args.project_ref:
-                print(f"  cd {bundle_path} && supabase link --project-ref {args.project_ref}")
-                print(f"  cd {bundle_path} && supabase db push")
-            elif args.db_url:
-                print(f"  cd {bundle_path} && supabase db push --db-url 'postgresql://...'")
-            else:
-                print(f"  cd {bundle_path} && supabase link --project-ref YOUR_PROJECT_REF")
-                print(f"  cd {bundle_path} && supabase db push")
         return
+
+    if args.command == "push-shared-supabase":
+        if not (args.project_ref or args.db_url):
+            parser.error(
+                "push-shared-supabase requires either --project-ref or --db-url."
+            )
+        _run_bundle_supabase(
+            core_repo=Path(args.core_repo),
+            output_dir=Path(args.output_dir),
+            project_ref=args.project_ref,
+            db_url=args.db_url,
+            password=args.password,
+            skip_pooler=args.skip_pooler,
+            push=True,
+            dry_run=args.dry_run,
+            include_all=args.include_all,
+        )
+        return
+
+
+def _run_bundle_supabase(
+    *,
+    core_repo: Path,
+    output_dir: Path,
+    project_ref: str | None,
+    db_url: str | None,
+    password: str | None,
+    skip_pooler: bool,
+    push: bool,
+    dry_run: bool,
+    include_all: bool,
+) -> None:
+    bundled = build_supabase_bundle(
+        core_repo=core_repo,
+        rag_repo=PROJECT_ROOT,
+        output_dir=output_dir,
+    )
+    bundle_path = output_dir.resolve()
+    if push:
+        run_supabase_push(
+            SupabasePushRequest(
+                bundle_dir=bundle_path,
+                project_ref=project_ref,
+                db_url=db_url,
+                password=password,
+                skip_pooler=skip_pooler,
+                dry_run=dry_run,
+                include_all=include_all,
+            )
+        )
+    print("\n=== SUPABASE BUNDLE ===\n")
+    print(f"Generated bundle in: {bundle_path}")
+    print(f"Migrations bundled: {len(bundled)}")
+    if push:
+        print("Supabase push completed from the generated bundle.")
+    else:
+        print("Run Supabase CLI from the generated workspace, for example:")
+        if project_ref:
+            print(f"  cd {bundle_path} && supabase link --project-ref {project_ref}")
+            print(f"  cd {bundle_path} && supabase db push")
+        elif db_url:
+            print(f"  cd {bundle_path} && supabase db push --db-url 'postgresql://...'")
+        else:
+            print(f"  cd {bundle_path} && supabase link --project-ref YOUR_PROJECT_REF")
+            print(f"  cd {bundle_path} && supabase db push")

@@ -1,78 +1,135 @@
 # Evaluation Strategy
 
-The project should be evaluated as a retrieval system, an analysis system, and a final decision-support system.
+The evaluation stack now has two layers:
 
-## 1. Retrieval Evaluation
+1. narrow deterministic regression tests for grounding behavior
+2. a broader golden set and release-gate pass/fail check
 
-Measure whether the system finds the right evidence.
+The deterministic regression suite lives in:
 
-- `precision@k`: How many retrieved chunks are relevant?
-- `recall@k`: Did the retriever surface the key evidence at all?
-- `MRR` or `nDCG`: Are the best chunks ranked near the top?
-- `freshness rate`: Percentage of retrieved evidence within the allowed recency window.
+- [tests/test_grounding_e2e.py](/home/danielmtz/Projects/agentic-rag/quant-agentic-rag/tests/test_grounding_e2e.py:1)
+- [tests/test_grounding_repair.py](/home/danielmtz/Projects/agentic-rag/quant-agentic-rag/tests/test_grounding_repair.py:1)
 
-## 2. Analyst Evaluation
+The broader offline evaluation asset lives in:
 
-Measure whether the specialist agents transform evidence into faithful findings.
+- [data/evaluation/golden_set.json](/home/danielmtz/Projects/agentic-rag/quant-agentic-rag/data/evaluation/golden_set.json:1)
 
-- `claim citation coverage`: Share of claims linked to at least one source.
-- `unsupported claim rate`: Share of claims lacking evidence.
-- `contradiction detection rate`: Whether conflicting evidence is surfaced.
-- `schema pass rate`: Whether outputs conform to typed analyst schemas.
+The aggregation logic lives in:
 
-## 3. Final Report Evaluation
+- [src/stock_agent_rag/evaluation.py](/home/danielmtz/Projects/agentic-rag/quant-agentic-rag/src/stock_agent_rag/evaluation.py:1)
 
-Measure the usefulness and trustworthiness of the final thesis.
+## Golden Set
 
-- `verdict agreement`: Agreement with human-labeled verdict bands.
-- `reason completeness`: Whether bull, base, and bear cases are all represented.
-- `faithfulness`: Human or model-graded score for evidence alignment.
-- `consistency`: Stability of final verdict over repeated runs on fixed inputs.
+The current golden set contains 24 ticker/question pairs across multiple sectors and market regimes.
 
-## 4. Human Review Loop
+Each case includes:
 
-For an initial research workflow, human review matters more than raw automation rate.
+- `ticker`
+- `question`
+- `sector`
+- `market_regime`
+- `expected_document_types`
+- `relevant_source_ids`
+- `required_issues`
+- `prohibited_claims`
+- `verdict_band`
+- `requires_contradiction_review`
 
-Reviewers should score:
+This is intended to be a release gate, not a benchmark for leaderboard-style model comparison.
+The objective is to catch regressions in:
 
-- relevance of retrieved evidence
-- clarity of the final thesis
-- whether major risks were surfaced
-- whether the citations would let an analyst verify the claims quickly
+- grounding
+- off-ticker retrieval leakage
+- contradiction surfacing
+- repair-loop recovery
 
-## 5. Minimum Viable Golden Set
+## Metric Definitions
 
-Create a labeled set of at least:
+Release-gate evaluation currently tracks these metrics:
 
-- 20 ticker-question pairs
-- 3 sectors
-- a mix of growth, mature, cyclical, and high-volatility names
-- known positive and negative events
+- `citation_format_compliance`
+  Share of evaluated runs with zero malformed citations and zero prohibited placeholder strings.
+- `unsupported_numeric_claim_rate`
+  Total uncited numeric-claim violations divided by evaluated runs.
+- `off_ticker_evidence_rate`
+  Off-ticker retrieved evidence count divided by total retrieved evidence across evaluated runs.
+- `contradiction_surfacing_rate`
+  For golden-set cases marked `requires_contradiction_review=true`, the share of runs that surface at least one contradiction.
+- `pass_rate_after_repair`
+  Among runs that triggered the single repair loop, the share that ended in final verifier pass.
+- `verification_pass_rate`
+  Share of evaluated runs whose final verifier status is `pass`.
+- `precision@k`
+  Mean share of top-`k` retrieved source ids that are labeled relevant, computed only on cases with `relevant_source_ids`.
+- `recall@k`
+  Mean share of labeled relevant source ids recovered within top-`k`, computed only on cases with `relevant_source_ids`.
+- `retrieval_label_coverage`
+  Share of evaluated cases that actually have retrieval relevance labels.
 
-Each example should include:
+## Release Gates
 
-- expected key documents
-- required issues the system should mention
-- unacceptable hallucinations
-- a rough verdict band
+The current gate thresholds are defined in [src/stock_agent_rag/evaluation.py](/home/danielmtz/Projects/agentic-rag/quant-agentic-rag/src/stock_agent_rag/evaluation.py:1):
 
-## 6. Operational Metrics
+- full golden-set coverage required for the release run
+- `citation_format_compliance >= 1.00`
+- `unsupported_numeric_claim_rate <= 0.00`
+- `off_ticker_evidence_rate <= 0.02`
+- `contradiction_surfacing_rate >= 0.80`
+- `pass_rate_after_repair >= 0.80`
 
-Track these in every run:
+These thresholds are intentionally strict on citation formatting and unsupported numeric claims. The workflow is now fail-closed on those issues, so the release gate should be aligned with that behavior.
 
-- end-to-end latency
-- per-node latency
-- token usage by node
-- retrieval hit counts
-- citation coverage
-- verifier failure count
+## Runtime Metric Sources
 
-## 7. Release Gates
+The release-gate aggregator relies on metrics already emitted by the workflow and service layers:
 
-Before wider use, require:
+- verifier metrics from [src/stock_agent_rag/workflow.py](/home/danielmtz/Projects/agentic-rag/quant-agentic-rag/src/stock_agent_rag/workflow.py:1121)
+  - `malformed_citation_count`
+  - `uncited_numeric_claim_count`
+  - `prohibited_placeholder_count`
+  - `repair_attempted`
+- retrieval metrics from [src/stock_agent_rag/telemetry.py](/home/danielmtz/Projects/agentic-rag/quant-agentic-rag/src/stock_agent_rag/telemetry.py:78)
+  - `off_ticker_evidence_count`
+  - `off_ticker_evidence_rate`
 
-- graph build passes
-- schema conformance above 99%
-- citation coverage above target threshold
-- unsupported claim rate below threshold
-- no critical regression on the golden set
+## How To Run
+
+The release-gate CLI expects a JSON file containing either:
+
+- a top-level list of workflow result objects
+- or an object with a `results` list
+
+Command:
+
+```bash
+uv run stock-agent-rag release-gates --results path/to/results.json
+```
+
+Optional custom golden set:
+
+```bash
+uv run stock-agent-rag release-gates \
+  --results path/to/results.json \
+  --golden-set data/evaluation/golden_set.json \
+  --retrieval-k 5
+
+## Retrieval Labeling
+
+`precision@k` and `recall@k` are now implemented in the evaluator, but they require
+case-level `relevant_source_ids` labels in the golden set.
+
+The current repo schema supports those labels. The remaining operational work is to annotate the
+24 existing golden-set cases with the evidence ids that should appear near the top of retrieval for
+each question.
+```
+
+## What Still Is Not Covered
+
+These areas are still not implemented as release gates:
+
+- retrieval `precision@k` and `recall@k`
+- verdict agreement against human-labeled outcome bands
+- repeated-run consistency under stochastic sampling
+- freshness-window enforcement inside the verifier
+
+Those remain useful next steps, but they are separate from the current grounding and corpus-quality gates.

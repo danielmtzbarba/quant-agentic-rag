@@ -496,3 +496,88 @@ def test_hybrid_retrieval_prefers_latest_filing_by_form_type() -> None:
     )
 
     assert results[0].source_id == "filing-latest-10q"
+
+
+def test_hybrid_retrieval_prefers_direct_company_mentions_over_loose_market_news() -> None:
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
+    now = datetime.now(UTC)
+
+    with session_factory() as session:
+        session.add_all(
+            [
+                ChunkORM(
+                    chunk_id="news-direct",
+                    source_id="news-direct",
+                    document_id="news-direct-doc",
+                    ticker="NVDA",
+                    title="NVIDIA wins another hyperscaler deployment",
+                    content=(
+                        "NVIDIA expanded a hyperscaler deployment with direct enterprise "
+                        "demand."
+                    ),
+                    document_type="news",
+                    provider="alpha_vantage",
+                    publisher="CNBC",
+                    published_at=now - timedelta(days=1),
+                    chunk_index=0,
+                    metadata_version="1.0",
+                    ticker_relevance_score=0.9,
+                    entity_title_match=True,
+                    entity_body_match=True,
+                    news_relevance_score=1.0,
+                    news_relevance_tier="direct",
+                    source_quality_tier="trusted",
+                ),
+                ChunkORM(
+                    chunk_id="news-loose",
+                    source_id="news-loose",
+                    document_id="news-loose-doc",
+                    ticker="NVDA",
+                    title="Semiconductor stocks rise on AI enthusiasm",
+                    content="Reuters covered broader chip stocks without naming NVIDIA directly.",
+                    document_type="news",
+                    provider="alpha_vantage",
+                    publisher="Reuters",
+                    published_at=now - timedelta(days=1),
+                    chunk_index=0,
+                    metadata_version="1.0",
+                    ticker_relevance_score=0.2,
+                    entity_title_match=False,
+                    entity_body_match=False,
+                    news_relevance_score=0.2,
+                    news_relevance_tier="indirect",
+                    source_quality_tier="trusted",
+                ),
+                ChunkEmbeddingORM(
+                    chunk_id="news-direct",
+                    document_id="news-direct-doc",
+                    ticker="NVDA",
+                    embedding_model="stub-embeddings",
+                    embedding_dimensions=3,
+                    embedding_json=[1.0, 1.0, 0.0],
+                    indexed_at=now,
+                ),
+                ChunkEmbeddingORM(
+                    chunk_id="news-loose",
+                    document_id="news-loose-doc",
+                    ticker="NVDA",
+                    embedding_model="stub-embeddings",
+                    embedding_dimensions=3,
+                    embedding_json=[1.0, 1.0, 0.0],
+                    indexed_at=now,
+                ),
+            ]
+        )
+        session.commit()
+
+    retriever = _build_retriever(session_factory=session_factory)
+    results = retriever.search(
+        query="NVDA enterprise demand",
+        ticker="NVDA",
+        top_k=1,
+        profile="sentiment",
+    )
+
+    assert [record.source_id for record in results] == ["news-direct"]
