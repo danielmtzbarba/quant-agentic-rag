@@ -249,7 +249,6 @@ Project documentation lives in `docs/`:
 - [Thesis Artifacts](docs/THESIS_ARTIFACTS.md)
 - [Vector Databases](docs/VECTOR_DATABASES.md)
 - [Supabase Migrations](docs/SUPABASE_MIGRATIONS.md)
-- [Interview Prep Notes](docs/INTERVIEW_PREP_SENIOR_RESEARCH_ENGINEER.md)
 
 These docs cover the architecture and subsystem decisions as they exist in the repository today.
 
