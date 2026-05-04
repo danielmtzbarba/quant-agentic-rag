@@ -1,0 +1,16 @@
+.git
+.pytest_cache
+.ruff_cache
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.env
+data/raw
+data/normalized
+data/chunks
+data/reports
+tests
+docs
+supabase

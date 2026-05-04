@@ -235,6 +235,18 @@ uv run stock-agent-rag research \
   --question "Generate an evidence-backed investment thesis."
 ```
 
+Run the API locally:
+
+```bash
+uv run stock-agent-rag serve --host 0.0.0.0 --port 8000
+```
+
+Important endpoints:
+
+- `GET /healthz`
+- `GET /readyz`
+- `POST /v1/research`
+
 ## Documentation
 
 Project documentation lives in `docs/`:
@@ -242,6 +254,7 @@ Project documentation lives in `docs/`:
 - [AI System Design](docs/AI_SYSTEM_DESIGN.md)
 - [Workflow](docs/WORKFLOW.md)
 - [Evaluation](docs/EVALUATION.md)
+- [k3s Deployment](docs/K3S_DEPLOYMENT.md)
 - [SEC Ingestion](docs/SEC_INGESTION.md)
 - [Transcript Ingestion](docs/TRANSCRIPT_INGESTION.md)
 - [News Ingestion](docs/NEWS_INGESTION.md)

@@ -4,6 +4,7 @@ from time import perf_counter
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 
 from .logging import get_logger, reset_request_id, set_request_id
 
@@ -31,3 +32,15 @@ def register_middleware(app: FastAPI) -> None:
         response.headers["x-request-id"] = request_id
         reset_request_id(token)
         return response
+
+
+def register_cors(app: FastAPI, *, origins: list[str]) -> None:
+    if not origins:
+        return
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )

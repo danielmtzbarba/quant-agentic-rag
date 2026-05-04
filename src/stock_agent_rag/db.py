@@ -297,3 +297,10 @@ def initialize_database(settings: Settings | None = None) -> None:
         with engine.begin() as connection:
             connection.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{resolved.db_schema}"'))
     Base.metadata.create_all(engine)
+
+
+def check_database_connection() -> bool:
+    engine = get_engine()
+    with engine.connect() as connection:
+        connection.execute(text("SELECT 1"))
+    return True

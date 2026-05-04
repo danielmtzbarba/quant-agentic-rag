@@ -187,6 +187,13 @@ class HealthResponse(BaseModel):
     environment: str
 
 
+class ReadinessResponse(BaseModel):
+    status: Literal["ok", "degraded"]
+    environment: str
+    llm: Literal["configured", "missing_api_key"]
+    database: Literal["disabled", "ok", "unavailable"]
+
+
 class FilingSection(BaseModel):
     section_id: str
     item_label: str

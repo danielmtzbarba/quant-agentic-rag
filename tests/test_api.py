@@ -33,6 +33,84 @@ async def test_healthz_returns_ok() -> None:
 
 
 @pytest.mark.asyncio
+async def test_readyz_returns_ok_when_llm_is_configured_and_db_is_disabled() -> None:
+    original_get_settings = api_module.get_settings
+    original_check_database_connection = api_module.check_database_connection
+
+    api_module.get_settings = lambda: type(
+        "StubSettings",
+        (),
+        {
+            "app_env": "local",
+            "app_name": "stock-agent-rag",
+            "log_level": "INFO",
+            "resolved_log_format": "json",
+            "cors_origins": [],
+            "openai_api_key": "sk-test-key",
+            "db_enabled": False,
+        },
+    )()
+    api_module.check_database_connection = lambda: True
+
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=create_app()),
+            base_url="http://test",
+        ) as client:
+            response = await client.get("/readyz")
+    finally:
+        api_module.get_settings = original_get_settings
+        api_module.check_database_connection = original_check_database_connection
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok",
+        "environment": "local",
+        "llm": "configured",
+        "database": "disabled",
+    }
+
+
+@pytest.mark.asyncio
+async def test_readyz_returns_503_when_llm_api_key_is_missing() -> None:
+    original_get_settings = api_module.get_settings
+    original_check_database_connection = api_module.check_database_connection
+
+    api_module.get_settings = lambda: type(
+        "StubSettings",
+        (),
+        {
+            "app_env": "test",
+            "app_name": "stock-agent-rag",
+            "log_level": "INFO",
+            "resolved_log_format": "json",
+            "cors_origins": [],
+            "openai_api_key": None,
+            "db_enabled": False,
+        },
+    )()
+    api_module.check_database_connection = lambda: True
+
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=create_app()),
+            base_url="http://test",
+        ) as client:
+            response = await client.get("/readyz")
+    finally:
+        api_module.get_settings = original_get_settings
+        api_module.check_database_connection = original_check_database_connection
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "status": "degraded",
+        "environment": "test",
+        "llm": "missing_api_key",
+        "database": "disabled",
+    }
+
+
+@pytest.mark.asyncio
 async def test_research_endpoint_returns_workflow_response() -> None:
     app = create_app()
     original = api_module.get_research_service

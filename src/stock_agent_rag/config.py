@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     log_format: str = Field(default="auto", alias="LOG_FORMAT")
     app_host: str = Field(default="0.0.0.0", alias="APP_HOST")
     app_port: int = Field(default=8000, alias="APP_PORT")
+    api_cors_origins: str = Field(default="", alias="API_CORS_ORIGINS")
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
     project_id: str | None = Field(default=None, alias="PROJECT_ID")
     model_name: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
@@ -126,6 +127,14 @@ class Settings(BaseSettings):
         if self.log_format.lower() == "auto":
             return "rich" if self.is_local else "logfmt"
         return self.log_format.lower()
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [
+            origin.strip()
+            for origin in self.api_cors_origins.split(",")
+            if origin.strip()
+        ]
 
     @property
     def raw_data_dir(self) -> Path:

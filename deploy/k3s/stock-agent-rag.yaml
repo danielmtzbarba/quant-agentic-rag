@@ -1,0 +1,127 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: quant-research
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: stock-agent-rag-config
+  namespace: quant-research
+data:
+  APP_NAME: stock-agent-rag
+  APP_ENV: production
+  LOG_LEVEL: INFO
+  LOG_FORMAT: logfmt
+  APP_HOST: 0.0.0.0
+  APP_PORT: "8000"
+  DEFAULT_TOP_K: "4"
+  DB_ECHO: "false"
+  DB_SCHEMA: rag
+  THESIS_STORAGE_PROVIDER: local
+  THESIS_ARTIFACT_LOCAL_MIRROR: "true"
+  THESIS_ARTIFACT_BASE_DIR: /app/data/reports
+  DATA_DIR: /app/data
+  RAG_CORPUS_DIR: /app/data/chunks
+  API_CORS_ORIGINS: ""
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: stock-agent-rag-secrets
+  namespace: quant-research
+type: Opaque
+stringData:
+  OPENAI_API_KEY: replace-me
+  OPENAI_MODEL: gpt-4o-mini
+  OPENAI_EMBEDDING_MODEL: text-embedding-3-large
+  OPENAI_EMBEDDING_DIMENSIONS: "3072"
+  OPENAI_RERANKER_MODEL: gpt-4o-mini
+  DATABASE_URL: ""
+  VANTAGE_API_KEY: ""
+  SEC_COMPANY_NAME: Quant Agentic RAG
+  SEC_EMAIL_ADDRESS: you@example.com
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: stock-agent-rag-data
+  namespace: quant-research
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stock-agent-rag
+  namespace: quant-research
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stock-agent-rag
+  template:
+    metadata:
+      labels:
+        app: stock-agent-rag
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/your-org/stock-agent-rag:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: stock-agent-rag-config
+            - secretRef:
+                name: stock-agent-rag-secrets
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: stock-agent-rag-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stock-agent-rag
+  namespace: quant-research
+spec:
+  selector:
+    app: stock-agent-rag
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+  type: ClusterIP
