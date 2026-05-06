@@ -218,14 +218,22 @@ cd quant-agentic-rag
 uv sync --extra dev
 ```
 
-Copy `.env.example` to `.env` and configure the providers you plan to use:
+Create the local env files and source the root loader:
+
+```bash
+cp .env.example .env
+cp infra/envs/research.env.example infra/envs/research.env
+export QUANT_AGENTIC_RAG_ROOT="$PWD"
+set -a; . ./.env; set +a
+```
+
+Fill at least these values in `infra/envs/research.env`:
 
 - `OPENAI_API_KEY`
-- `OPENAI_MODEL_NAME`
-- `OPENAI_EMBEDDING_MODEL`
-- `OPENAI_EMBEDDING_DIMENSIONS`
 - `VANTAGE_API_KEY`
 - `DATABASE_URL`
+
+Most non-secret runtime defaults already live in [infra/configs/research.env](/home/danielmtz/Projects/agentic-rag/quant-agentic-rag/infra/configs/research.env:1).
 
 Run a one-off research workflow:
 

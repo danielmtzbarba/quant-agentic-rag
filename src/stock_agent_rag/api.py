@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException, status
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
@@ -12,6 +12,24 @@ from .schemas import HealthResponse, ReadinessResponse, ResearchRequest, Researc
 from .service import ResearchService, get_research_service
 
 logger = get_logger(__name__)
+
+
+def _verify_internal_bearer(authorization: str | None, *, expected_token: str | None) -> None:
+    token = (expected_token or "").strip()
+    if not token:
+        return
+    header_value = (authorization or "").strip()
+    if not header_value.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing bearer token.",
+        )
+    provided_token = header_value.removeprefix("Bearer ").strip()
+    if provided_token != token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid bearer token.",
+        )
 
 
 def create_app() -> FastAPI:
@@ -59,7 +77,14 @@ def create_app() -> FastAPI:
         )
 
     @app.post("/v1/research", response_model=ResearchResponse)
-    async def run_research(request: ResearchRequest) -> ResearchResponse:
+    async def run_research(
+        request: ResearchRequest,
+        authorization: str | None = Header(default=None),
+    ) -> ResearchResponse:
+        _verify_internal_bearer(
+            authorization,
+            expected_token=settings.research_service_auth_token,
+        )
         service: ResearchService = get_research_service()
         logger.info(
             "research request received",

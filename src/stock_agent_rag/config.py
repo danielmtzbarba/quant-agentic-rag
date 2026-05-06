@@ -9,14 +9,37 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DOTENV_PATH = PROJECT_ROOT / ".env"
+RESEARCH_SECRET_ENV_PATH = PROJECT_ROOT / "infra" / "envs" / "research.env"
+RESEARCH_CONFIG_ENV_PATH = PROJECT_ROOT / "infra" / "configs" / "research.env"
 
-# Explicitly load the project .env so CLI entrypoints keep working even when the
-# current working directory is not the repo root.
-load_dotenv(dotenv_path=DOTENV_PATH, override=False)
+
+def _is_shell_sourced_env(path: Path) -> bool:
+    if not path.exists():
+        return False
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return ': "${' in content or '\n. "' in content or "\n. '" in content
+
+
+def _load_project_env() -> None:
+    # Prefer the tracked infra files. These are plain KEY=VALUE env files and
+    # remain compatible with both local runtime and Kubernetes config generation.
+    load_dotenv(dotenv_path=RESEARCH_SECRET_ENV_PATH, override=False)
+    load_dotenv(dotenv_path=RESEARCH_CONFIG_ENV_PATH, override=False)
+
+    # Keep backward compatibility for legacy local setups that still use a flat
+    # dotenv-style root .env, but skip shell-sourceable templates.
+    if not _is_shell_sourced_env(DOTENV_PATH):
+        load_dotenv(dotenv_path=DOTENV_PATH, override=False)
+
+
+_load_project_env()
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(extra="ignore")
 
     app_name: str = Field(default="stock-agent-rag", alias="APP_NAME")
     app_env: str = Field(default="local", alias="APP_ENV")
@@ -25,6 +48,10 @@ class Settings(BaseSettings):
     app_host: str = Field(default="0.0.0.0", alias="APP_HOST")
     app_port: int = Field(default=8000, alias="APP_PORT")
     api_cors_origins: str = Field(default="", alias="API_CORS_ORIGINS")
+    research_service_auth_token: str | None = Field(
+        default=None,
+        alias="RESEARCH_SERVICE_AUTH_TOKEN",
+    )
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
     project_id: str | None = Field(default=None, alias="PROJECT_ID")
     model_name: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")

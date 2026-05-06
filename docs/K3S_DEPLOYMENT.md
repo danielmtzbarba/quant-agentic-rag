@@ -48,26 +48,33 @@ docker run --rm -p 8000:8000 \
   stock-agent-rag:local
 ```
 
-## k3s Manifest
+## Kubernetes Config Source Of Truth
 
-A baseline manifest is provided at:
+Live k3s manifests should not be maintained in this repository.
 
-- [deploy/k3s/stock-agent-rag.yaml](/home/danielmtz/Projects/agentic-rag/quant-agentic-rag/deploy/k3s/stock-agent-rag.yaml:1)
+The source of truth for deployment config is:
 
-It includes:
+- `/home/danielmtz/Projects/kubernetes/quant-server-config`
 
-- `Namespace`
+This application repo owns:
+
+- container build logic
+- runtime code
+- API contract
+
+The config repo should own:
+
 - `ConfigMap`
-- `Secret`
-- `PersistentVolumeClaim`
+- `ExternalSecret`
 - `Deployment`
 - `Service`
+- `ServiceMonitor`
+- Argo CD image update wiring
 
-Apply it with:
+For the research service, the expected image naming convention is:
 
-```bash
-kubectl apply -f deploy/k3s/stock-agent-rag.yaml
-```
+- `ghcr.io/<owner>/research_service:dev-<40-char-sha>`
+- `ghcr.io/<owner>/research_service:prod-<40-char-sha>`
 
 ## Required Configuration
 
