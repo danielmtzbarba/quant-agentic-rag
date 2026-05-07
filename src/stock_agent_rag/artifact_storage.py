@@ -14,8 +14,7 @@ class ObjectStorageProvider(Protocol):
         object_key: str,
         content: str,
         content_type: str,
-    ) -> StoredObject:
-        ...
+    ) -> StoredObject: ...
 
 
 class LocalArtifactStorage:

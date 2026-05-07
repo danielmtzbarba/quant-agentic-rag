@@ -91,16 +91,22 @@ def test_evaluate_release_gates_aggregates_grounding_and_news_quality_metrics() 
 
 
 def test_precision_and_recall_at_k_use_ranked_retrieval_ids() -> None:
-    assert precision_at_k(
-        retrieved_source_ids=["a", "b", "c"],
-        relevant_source_ids=["b", "d"],
-        k=2,
-    ) == 0.5
-    assert recall_at_k(
-        retrieved_source_ids=["a", "b", "c"],
-        relevant_source_ids=["b", "d"],
-        k=2,
-    ) == 0.5
+    assert (
+        precision_at_k(
+            retrieved_source_ids=["a", "b", "c"],
+            relevant_source_ids=["b", "d"],
+            k=2,
+        )
+        == 0.5
+    )
+    assert (
+        recall_at_k(
+            retrieved_source_ids=["a", "b", "c"],
+            relevant_source_ids=["b", "d"],
+            k=2,
+        )
+        == 0.5
+    )
 
 
 def test_evaluate_release_gates_reports_retrieval_precision_and_recall() -> None:

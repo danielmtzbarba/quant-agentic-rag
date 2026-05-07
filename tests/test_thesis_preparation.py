@@ -77,15 +77,12 @@ def test_thesis_preparation_buckets_findings_into_sections() -> None:
     assert "key_risks" in sections
     assert "evidence_gaps" in sections
 
-    assert any(
-        f.finding == "Revenue growth remains strong" for f in sections["bull_case"].findings
-    )
+    assert any(f.finding == "Revenue growth remains strong" for f in sections["bull_case"].findings)
     assert any(
         f.finding == "Management tone is constructive" for f in sections["bull_case"].findings
     )
     assert any(
-        f.finding == "Margin pressure may compress earnings"
-        for f in sections["bear_case"].findings
+        f.finding == "Margin pressure may compress earnings" for f in sections["bear_case"].findings
     )
     assert any(
         f.finding == "Export controls remain a material risk"

@@ -157,11 +157,7 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins(self) -> list[str]:
-        return [
-            origin.strip()
-            for origin in self.api_cors_origins.split(",")
-            if origin.strip()
-        ]
+        return [origin.strip() for origin in self.api_cors_origins.split(",") if origin.strip()]
 
     @property
     def raw_data_dir(self) -> Path:

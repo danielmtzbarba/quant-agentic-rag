@@ -11,9 +11,9 @@ class EvidenceRecord(BaseModel):
     ticker: str
     title: str
     content: str
-    document_type: Literal[
-        "filing", "transcript", "news", "fundamentals", "note", "unknown"
-    ] = "unknown"
+    document_type: Literal["filing", "transcript", "news", "fundamentals", "note", "unknown"] = (
+        "unknown"
+    )
     source_url: str | None = None
     published_at: datetime | None = None
     score: float = 0.0
@@ -248,9 +248,9 @@ class EvidenceChunk(BaseModel):
     ticker: str
     title: str
     content: str
-    document_type: Literal[
-        "filing", "transcript", "news", "fundamentals", "note", "unknown"
-    ] = "filing"
+    document_type: Literal["filing", "transcript", "news", "fundamentals", "note", "unknown"] = (
+        "filing"
+    )
     provider: str
     form_type: str | None = None
     section: str | None = None

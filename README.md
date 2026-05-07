@@ -391,6 +391,20 @@ uv run pytest tests/test_graph.py tests/test_hybrid_retrieval.py tests/test_eval
 uv run stock-agent-rag release-gates --results path/to/results.json
 ```
 
+## Local Push Guard
+
+Install the local pre-push hook with:
+
+```bash
+sh scripts/setup-hooks.sh
+```
+
+The hook runs before every push:
+
+- `uv run ruff check src tests`
+- `uv run ruff format --check src tests`
+- `uv run pytest`
+
 ## Interview-Relevant Scope
 
 This repository is a strong fit for discussions around:

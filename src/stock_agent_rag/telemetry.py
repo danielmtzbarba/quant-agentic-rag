@@ -28,10 +28,9 @@ def estimate_cost_usd(
     if pricing is None:
         return None
 
-    estimated = (
-        (input_tokens / 1_000_000) * pricing["input"]
-        + (output_tokens / 1_000_000) * pricing["output"]
-    )
+    estimated = (input_tokens / 1_000_000) * pricing["input"] + (
+        output_tokens / 1_000_000
+    ) * pricing["output"]
     return round(estimated, 8)
 
 

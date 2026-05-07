@@ -61,9 +61,7 @@ class ThesisArtifactService:
             markdown_path = stored.markdown_path
 
         markdown_checksum = hashlib.sha256(content.encode("utf-8")).hexdigest()
-        thesis_hash = hashlib.sha256(
-            str(result.get("report", "")).encode("utf-8")
-        ).hexdigest()
+        thesis_hash = hashlib.sha256(str(result.get("report", "")).encode("utf-8")).hexdigest()
         verification_metrics = result.get("verification_metrics")
         retrieval_metrics = result.get("retrieval_metrics")
         runtime_metrics = result.get("runtime_metrics")
@@ -165,9 +163,7 @@ class ThesisArtifactService:
         )
 
     def _build_object_key(self, *, ticker: str, run_id: str, created_at: datetime) -> str:
-        return (
-            f"theses/{ticker.upper()}/{created_at:%Y}/{created_at:%m}/{run_id}.md"
-        )
+        return f"theses/{ticker.upper()}/{created_at:%Y}/{created_at:%m}/{run_id}.md"
 
     def _render_markdown(
         self,

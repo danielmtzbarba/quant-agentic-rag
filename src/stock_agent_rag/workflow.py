@@ -45,9 +45,7 @@ from .tools import (
 SOURCE_CITATION_RE = re.compile(r"\[source:([^\]]+)\]")
 INLINE_SOURCE_CITATION_RE = re.compile(r"\[source:[^\]]+\]")
 MALFORMED_SOURCE_CITATION_RE = re.compile(r"(?<!\[)\bsource:[A-Za-z0-9_.:-]+\b")
-NUMERIC_TOKEN_RE = re.compile(
-    r"(?<!\[source:)(?<![A-Za-z])(?:\$?\d[\d,]*(?:\.\d+)?%?)(?![^\[]*\])"
-)
+NUMERIC_TOKEN_RE = re.compile(r"(?<!\[source:)(?<![A-Za-z])(?:\$?\d[\d,]*(?:\.\d+)?%?)(?![^\[]*\])")
 TOKEN_RE = re.compile(r"[a-z0-9]+")
 POSITIVE_FINDING_TOKENS = {
     "strong",
@@ -289,8 +287,7 @@ def sentiment_corpus_retrieval_node(state: ResearchState) -> dict:
 
 def risk_corpus_retrieval_node(state: ResearchState) -> dict:
     query = (
-        f"{state['ticker']} {state['question']} risk factors legal regulation "
-        "balance sheet news"
+        f"{state['ticker']} {state['question']} risk factors legal regulation balance sheet news"
     )
     evidence = local_corpus_search(query=query, ticker=state["ticker"], profile="risk")
     return {"risk_evidence": evidence}
@@ -308,6 +305,7 @@ def aggregate_evidence_node(state: ResearchState) -> dict:
         state.get("risk_evidence", []),
     )
     return {"retrieved_evidence": merged}
+
 
 def _analyst_prompt(state: ResearchState, evidence_key: str) -> str:
     fundamentals = state.get("fundamentals")
@@ -636,8 +634,7 @@ def contradiction_check_node(state: ResearchState) -> dict:
             for item in contradictions[:5]
         )
         summary = (
-            f"Detected {len(contradictions)} cross-analyst contradictions. "
-            f"Preview: {preview}."
+            f"Detected {len(contradictions)} cross-analyst contradictions. Preview: {preview}."
         )
     else:
         summary = "No cross-analyst contradictions detected."
@@ -938,9 +935,7 @@ def _render_thesis_grounding_packet(state: ResearchState) -> str:
                 if finding.evidence_ids
                 else "no evidence ids"
             )
-            lines.append(
-                f"{idx}. finding={finding.finding}"
-            )
+            lines.append(f"{idx}. finding={finding.finding}")
             lines.append(f"   analyst={finding.analyst}")
             lines.append(f"   confidence={finding.confidence:.2f}")
             lines.append(f"   allowed_evidence_ids={citations}")
@@ -1002,8 +997,7 @@ def validate_thesis_report(report: str) -> list[str]:
     if malformed_citation_lines:
         preview = "; ".join(malformed_citation_lines[:3])
         errors.append(
-            "Report contains malformed citations; use exact `[source:<id>]` syntax only: "
-            f"{preview}"
+            f"Report contains malformed citations; use exact `[source:<id>]` syntax only: {preview}"
         )
 
     uncited_numeric_lines = _report_lines_with_uncited_numeric_claims(report)
@@ -1208,10 +1202,9 @@ def verifier_node(state: ResearchState) -> dict:
     verification_result, raw_response = _run_verifier_pass(state, report=report)
 
     result: dict[str, object] = dict(verification_result)
-    if (
-        str(verification_result.get("verification_status", "unknown")).lower() == "fail"
-        and not bool(state.get("repair_attempted", False))
-    ):
+    if str(
+        verification_result.get("verification_status", "unknown")
+    ).lower() == "fail" and not bool(state.get("repair_attempted", False)):
         initial_verification_summary = str(verification_result.get("verification_summary", ""))
         repaired_report, repair_metrics = _run_thesis_repair(
             state,
@@ -1236,11 +1229,7 @@ def verifier_node(state: ResearchState) -> dict:
         }
 
     result["node_metrics"] = _record_node_metrics(
-        {
-            "node_metrics": result.get("node_metrics", {})
-            or state.get("node_metrics", {})
-            or {}
-        },
+        {"node_metrics": result.get("node_metrics", {}) or state.get("node_metrics", {}) or {}},
         node_name="verifier",
         response=raw_response,
         started_at=started_at,

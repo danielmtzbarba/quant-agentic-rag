@@ -141,8 +141,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--core-repo",
         required=True,
         help=(
-            "Absolute or relative path to the core repository that owns "
-            "the main Supabase project."
+            "Absolute or relative path to the core repository that owns the main Supabase project."
         ),
     )
     bundle_parser.add_argument(
@@ -191,8 +190,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--core-repo",
         required=True,
         help=(
-            "Absolute or relative path to the core repository that owns "
-            "the main Supabase project."
+            "Absolute or relative path to the core repository that owns the main Supabase project."
         ),
     )
     push_shared_parser.add_argument(
@@ -334,9 +332,7 @@ def main() -> None:
 
     if args.command == "bundle-supabase":
         if args.push and not (args.project_ref or args.db_url):
-            parser.error(
-                "bundle-supabase --push requires either --project-ref or --db-url."
-            )
+            parser.error("bundle-supabase --push requires either --project-ref or --db-url.")
         _run_bundle_supabase(
             core_repo=Path(args.core_repo),
             output_dir=Path(args.output_dir),
@@ -352,9 +348,7 @@ def main() -> None:
 
     if args.command == "push-shared-supabase":
         if not (args.project_ref or args.db_url):
-            parser.error(
-                "push-shared-supabase requires either --project-ref or --db-url."
-            )
+            parser.error("push-shared-supabase requires either --project-ref or --db-url.")
         _run_bundle_supabase(
             core_repo=Path(args.core_repo),
             output_dir=Path(args.output_dir),

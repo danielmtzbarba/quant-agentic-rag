@@ -13,8 +13,7 @@ SAMPLE_NEWS_PAYLOAD = {
             "url": "https://example.com/nvda-ai-systems",
             "time_published": "20260416T120000",
             "summary": (
-                "The company unveiled new enterprise offerings and highlighted "
-                "strong demand."
+                "The company unveiled new enterprise offerings and highlighted strong demand."
             ),
             "source": "Reuters",
             "overall_sentiment_score": "0.42",

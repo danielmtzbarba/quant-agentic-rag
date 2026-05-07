@@ -62,10 +62,7 @@ def evaluate_release_gates(
     manifest: GoldenSetManifest,
     retrieval_k: int = 5,
 ) -> dict[str, object]:
-    case_lookup = {
-        _case_key(case.ticker, case.question): case
-        for case in manifest.cases
-    }
+    case_lookup = {_case_key(case.ticker, case.question): case for case in manifest.cases}
     matched_runs: list[tuple[GoldenSetCase, dict[str, object]]] = []
     unmatched_runs = 0
     for result in results:

@@ -514,8 +514,7 @@ def test_hybrid_retrieval_prefers_direct_company_mentions_over_loose_market_news
                     ticker="NVDA",
                     title="NVIDIA wins another hyperscaler deployment",
                     content=(
-                        "NVIDIA expanded a hyperscaler deployment with direct enterprise "
-                        "demand."
+                        "NVIDIA expanded a hyperscaler deployment with direct enterprise demand."
                     ),
                     document_type="news",
                     provider="alpha_vantage",

@@ -466,9 +466,7 @@ class AlphaVantageTranscriptIngestionService:
     ) -> DocumentRecord:
         transcript_turns = self._extract_turns_from_payload(raw_payload)
         transcript_text = self._normalize_text(
-            "\n\n".join(
-                f"{turn.speaker}:\n{turn.content}" for turn in transcript_turns
-            )
+            "\n\n".join(f"{turn.speaker}:\n{turn.content}" for turn in transcript_turns)
             if transcript_turns
             else str(raw_payload.get("transcript") or raw_payload.get("content") or "")
         )

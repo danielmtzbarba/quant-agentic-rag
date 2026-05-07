@@ -53,9 +53,7 @@ def test_build_supabase_bundle_merges_core_and_rag_migrations(tmp_path: Path) ->
     assert (output_dir / "supabase" / "config.toml").read_text(encoding="utf-8").strip() == (
         'project_id = "core-project"'
     )
-    assert (
-        output_dir / "supabase" / "migrations" / "20260417070000_init_rag_schema.sql"
-    ).exists()
+    assert (output_dir / "supabase" / "migrations" / "20260417070000_init_rag_schema.sql").exists()
 
     manifest = json.loads((output_dir / "bundle-manifest.json").read_text(encoding="utf-8"))
     assert {item["source_name"] for item in manifest["migrations"]} == {"core", "rag"}

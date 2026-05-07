@@ -91,11 +91,9 @@ class RetrievalPlan:
 
 
 class EmbeddingProvider(Protocol):
-    def embed_query(self, text: str) -> list[float]:
-        ...
+    def embed_query(self, text: str) -> list[float]: ...
 
-    def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        ...
+    def embed_documents(self, texts: list[str]) -> list[list[float]]: ...
 
 
 class OpenAIEmbeddingProvider:
@@ -121,8 +119,7 @@ class QueryPlanOutput(BaseModel):
 
 
 class QueryPlanner(Protocol):
-    def plan(self, *, query: str, ticker: str, profile: RetrievalProfile) -> RetrievalPlan:
-        ...
+    def plan(self, *, query: str, ticker: str, profile: RetrievalProfile) -> RetrievalPlan: ...
 
 
 class HeuristicQueryPlanner:
@@ -208,8 +205,7 @@ class CandidateReranker(Protocol):
         query: str,
         candidates: list[RetrievalCandidate],
         profile: RetrievalProfile,
-    ) -> list[RetrievalCandidate]:
-        ...
+    ) -> list[RetrievalCandidate]: ...
 
 
 class HeuristicReranker:
