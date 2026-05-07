@@ -1,0 +1,270 @@
+{
+  "version": "1.0",
+  "description": "Internal golden set for release-gate evaluation across sectors, market regimes, and contradiction-heavy synthesis scenarios.",
+  "cases": [
+    {
+      "ticker": "NVDA",
+      "question": "Generate an evidence-backed investment thesis focused on AI accelerator demand durability.",
+      "sector": "Semiconductors",
+      "market_regime": "high-growth",
+      "expected_document_types": ["filing", "transcript", "news", "fundamentals"],
+      "required_issues": ["data center growth", "margin durability", "customer concentration"],
+      "prohibited_claims": ["unbounded AI demand", "zero competition risk"],
+      "verdict_band": "bullish-with-execution-risk",
+      "requires_contradiction_review": true
+    },
+    {
+      "ticker": "AMD",
+      "question": "Assess whether AMD can sustain share gains in data center GPUs and CPUs.",
+      "sector": "Semiconductors",
+      "market_regime": "competitive-share-shift",
+      "expected_document_types": ["filing", "transcript", "news", "fundamentals"],
+      "required_issues": ["MI300 ramp", "EPYC share gains", "pricing pressure"],
+      "prohibited_claims": ["AI leadership is already secured"],
+      "verdict_band": "balanced",
+      "requires_contradiction_review": true
+    },
+    {
+      "ticker": "AVGO",
+      "question": "Evaluate Broadcom's thesis after VMware integration and AI networking demand.",
+      "sector": "Semiconductors",
+      "market_regime": "post-acquisition",
+      "expected_document_types": ["filing", "transcript", "news"],
+      "required_issues": ["VMware integration", "AI networking demand", "customer concentration"],
+      "prohibited_claims": ["integration risk is resolved"],
+      "verdict_band": "balanced",
+      "requires_contradiction_review": true
+    },
+    {
+      "ticker": "AAPL",
+      "question": "Generate a thesis on Apple's services resilience and hardware replacement cycle risk.",
+      "sector": "Consumer Technology",
+      "market_regime": "mature-platform",
+      "expected_document_types": ["filing", "transcript", "news", "fundamentals"],
+      "required_issues": ["services mix", "iPhone cycle", "regulatory pressure"],
+      "prohibited_claims": ["hardware demand is irrelevant"],
+      "verdict_band": "balanced",
+      "requires_contradiction_review": false
+    },
+    {
+      "ticker": "AMZN",
+      "question": "Assess Amazon's investment thesis with emphasis on AWS margins and retail efficiency.",
+      "sector": "Internet",
+      "market_regime": "margin-recovery",
+      "expected_document_types": ["filing", "transcript", "news", "fundamentals"],
+      "required_issues": ["AWS growth", "retail margins", "capital intensity"],
+      "prohibited_claims": ["retail no longer affects valuation"],
+      "verdict_band": "bullish-with-capex-risk",
+      "requires_contradiction_review": true
+    },
+    {
+      "ticker": "GOOGL",
+      "question": "Evaluate Alphabet's thesis under AI search monetization pressure.",
+      "sector": "Internet",
+      "market_regime": "platform-disruption-risk",
+      "expected_document_types": ["filing", "transcript", "news"],
+      "required_issues": ["search monetization", "cloud profitability", "AI capex"],
+      "prohibited_claims": ["AI products have no cannibalization risk"],
+      "verdict_band": "balanced",
+      "requires_contradiction_review": true
+    },
+    {
+      "ticker": "META",
+      "question": "Generate a thesis on Meta's ad recovery versus AI infrastructure spending.",
+      "sector": "Internet",
+      "market_regime": "efficiency-rebound",
+      "expected_document_types": ["filing", "transcript", "news"],
+      "required_issues": ["ad pricing", "engagement trends", "AI infrastructure cost"],
+      "prohibited_claims": ["capex is immaterial"],
+      "verdict_band": "balanced",
+      "requires_contradiction_review": true
+    },
+    {
+      "ticker": "MSFT",
+      "question": "Assess Microsoft's thesis centered on Azure demand and Copilot monetization.",
+      "sector": "Software",
+      "market_regime": "enterprise-ai-expansion",
+      "expected_document_types": ["filing", "transcript", "news", "fundamentals"],
+      "required_issues": ["Azure growth", "AI monetization", "margin tradeoffs"],
+      "prohibited_claims": ["AI revenue is already fully proven"],
+      "verdict_band": "bullish-with-valuation-risk",
+      "requires_contradiction_review": true
+    },
+    {
+      "ticker": "CRM",
+      "question": "Generate a thesis on Salesforce after margin expansion and slower seat growth.",
+      "sector": "Software",
+      "market_regime": "efficiency-vs-growth",
+      "expected_document_types": ["filing", "transcript", "news"],
+      "required_issues": ["subscription growth", "margin expansion", "sales execution"],
+      "prohibited_claims": ["growth slowdown no longer matters"],
+      "verdict_band": "balanced",
+      "requires_contradiction_review": true
+    },
+    {
+      "ticker": "SNOW",
+      "question": "Assess Snowflake's thesis around consumption stabilization and platform expansion.",
+      "sector": "Software",
+      "market_regime": "reacceleration-watch",
+      "expected_document_types": ["filing", "transcript", "news"],
+      "required_issues": ["consumption trends", "product expansion", "sales execution"],
+      "prohibited_claims": ["usage volatility is gone"],
+      "verdict_band": "balanced",
+      "requires_contradiction_review": true
+    },
+    {
+      "ticker": "JPM",
+      "question": "Generate a thesis on JPMorgan under higher-for-longer rates and credit normalization.",
+      "sector": "Financials",
+      "market_regime": "rate-sensitive",
+      "expected_document_types": ["filing", "transcript", "news", "fundamentals"],
+      "required_issues": ["net interest income", "credit quality", "capital return"],
+      "prohibited_claims": ["credit risk is negligible"],
+      "verdict_band": "balanced",
+      "requires_contradiction_review": true
+    },
+    {
+      "ticker": "GS",
+      "question": "Assess Goldman Sachs with emphasis on capital markets recovery and expense discipline.",
+      "sector": "Financials",
+      "market_regime": "capital-markets-recovery",
+      "expected_document_types": ["filing", "transcript", "news"],
+      "required_issues": ["investment banking pipeline", "trading normalization", "expense control"],
+      "prohibited_claims": ["capital markets rebound is certain"],
+      "verdict_band": "balanced",
+      "requires_contradiction_review": false
+    },
+    {
+      "ticker": "V",
+      "question": "Generate a thesis on Visa focused on payments volume resilience and cross-border mix.",
+      "sector": "Financials",
+      "market_regime": "defensive-compounder",
+      "expected_document_types": ["filing", "transcript", "news"],
+      "required_issues": ["payments volume", "cross-border trends", "regulatory risk"],
+      "prohibited_claims": ["regulation is irrelevant"],
+      "verdict_band": "bullish-with-regulatory-risk",
+      "requires_contradiction_review": false
+    },
+    {
+      "ticker": "LLY",
+      "question": "Assess Eli Lilly's thesis around obesity drug demand and manufacturing constraints.",
+      "sector": "Healthcare",
+      "market_regime": "capacity-constrained-growth",
+      "expected_document_types": ["filing", "transcript", "news"],
+      "required_issues": ["obesity demand", "manufacturing capacity", "pricing durability"],
+      "prohibited_claims": ["supply constraints are solved"],
+      "verdict_band": "bullish-with-capacity-risk",
+      "requires_contradiction_review": true
+    },
+    {
+      "ticker": "UNH",
+      "question": "Generate a thesis on UnitedHealth with emphasis on medical cost trends and Optum execution.",
+      "sector": "Healthcare",
+      "market_regime": "cost-pressure",
+      "expected_document_types": ["filing", "transcript", "news"],
+      "required_issues": ["medical loss trends", "Optum growth", "regulatory scrutiny"],
+      "prohibited_claims": ["medical cost pressure is transient without evidence"],
+      "verdict_band": "balanced",
+      "requires_contradiction_review": true
+    },
+    {
+      "ticker": "ISRG",
+      "question": "Assess Intuitive Surgical on procedure growth durability and capital equipment demand.",
+      "sector": "Healthcare",
+      "market_regime": "elective-procedure-growth",
+      "expected_document_types": ["filing", "transcript", "news"],
+      "required_issues": ["procedure growth", "system placements", "hospital budget sensitivity"],
+      "prohibited_claims": ["hospital budgets do not matter"],
+      "verdict_band": "balanced",
+      "requires_contradiction_review": false
+    },
+    {
+      "ticker": "XOM",
+      "question": "Generate a thesis on Exxon Mobil under oil price volatility and project execution risk.",
+      "sector": "Energy",
+      "market_regime": "commodity-cyclical",
+      "expected_document_types": ["filing", "transcript", "news"],
+      "required_issues": ["commodity sensitivity", "capital allocation", "project execution"],
+      "prohibited_claims": ["oil prices are predictable"],
+      "verdict_band": "balanced",
+      "requires_contradiction_review": true
+    },
+    {
+      "ticker": "SLB",
+      "question": "Assess SLB on international service-cycle strength and North America softness.",
+      "sector": "Energy",
+      "market_regime": "service-cycle-divergence",
+      "expected_document_types": ["filing", "transcript", "news"],
+      "required_issues": ["international growth", "North America pressure", "pricing"],
+      "prohibited_claims": ["regional mix no longer matters"],
+      "verdict_band": "balanced",
+      "requires_contradiction_review": true
+    },
+    {
+      "ticker": "CAT",
+      "question": "Generate a thesis on Caterpillar with emphasis on backlog quality and cyclicality.",
+      "sector": "Industrials",
+      "market_regime": "late-cycle",
+      "expected_document_types": ["filing", "transcript", "news"],
+      "required_issues": ["backlog conversion", "dealer inventory", "end-market cyclicality"],
+      "prohibited_claims": ["cyclicality no longer applies"],
+      "verdict_band": "balanced",
+      "requires_contradiction_review": true
+    },
+    {
+      "ticker": "GE",
+      "question": "Assess GE Aerospace on aftermarket durability and supply-chain normalization.",
+      "sector": "Industrials",
+      "market_regime": "post-spin-focus",
+      "expected_document_types": ["filing", "transcript", "news"],
+      "required_issues": ["aftermarket demand", "LEAP engine issues", "supply chain"],
+      "prohibited_claims": ["supply-chain risk is fully resolved"],
+      "verdict_band": "bullish-with-execution-risk",
+      "requires_contradiction_review": true
+    },
+    {
+      "ticker": "DE",
+      "question": "Generate a thesis on Deere under farm-cycle normalization and precision ag adoption.",
+      "sector": "Industrials",
+      "market_regime": "cyclical-downshift",
+      "expected_document_types": ["filing", "transcript", "news"],
+      "required_issues": ["large ag demand", "pricing", "precision ag adoption"],
+      "prohibited_claims": ["farm cycle does not matter"],
+      "verdict_band": "balanced",
+      "requires_contradiction_review": false
+    },
+    {
+      "ticker": "COST",
+      "question": "Assess Costco on traffic resilience, membership economics, and margin discipline.",
+      "sector": "Consumer Staples",
+      "market_regime": "defensive-growth",
+      "expected_document_types": ["filing", "transcript", "news"],
+      "required_issues": ["membership renewal", "traffic growth", "gross margin"],
+      "prohibited_claims": ["membership economics guarantee upside"],
+      "verdict_band": "bullish-with-valuation-risk",
+      "requires_contradiction_review": false
+    },
+    {
+      "ticker": "WMT",
+      "question": "Generate a thesis on Walmart around grocery mix, e-commerce leverage, and pricing.",
+      "sector": "Consumer Staples",
+      "market_regime": "defensive-share-gain",
+      "expected_document_types": ["filing", "transcript", "news"],
+      "required_issues": ["grocery mix", "e-commerce economics", "consumer pressure"],
+      "prohibited_claims": ["pricing pressure is gone"],
+      "verdict_band": "balanced",
+      "requires_contradiction_review": false
+    },
+    {
+      "ticker": "TSLA",
+      "question": "Assess Tesla's thesis with emphasis on auto margins, delivery growth, and autonomy optionality.",
+      "sector": "Automotive",
+      "market_regime": "high-volatility",
+      "expected_document_types": ["filing", "transcript", "news", "fundamentals"],
+      "required_issues": ["auto gross margins", "volume growth", "autonomy optionality"],
+      "prohibited_claims": ["autonomy is proven revenue today", "margin pressure is over"],
+      "verdict_band": "mixed-high-volatility",
+      "requires_contradiction_review": true
+    }
+  ]
+}
