@@ -189,3 +189,63 @@ async def test_research_endpoint_returns_workflow_response() -> None:
     assert payload["ticker"] == "NVDA"
     assert payload["retrieved_sources"] == ["source-1"]
     assert response.headers["x-request-id"]
+
+
+@pytest.mark.asyncio
+async def test_metrics_endpoint_exposes_prometheus_metrics() -> None:
+    async with AsyncClient(
+        transport=ASGITransport(app=create_app()),
+        base_url="http://test",
+    ) as client:
+        response = await client.get("/metrics")
+
+    assert response.status_code == 200
+    assert "text/plain" in response.headers["content-type"]
+    payload = response.text
+    assert "research_http_requests_total" in payload
+    assert "research_http_request_latency_seconds_bucket" in payload
+    assert "research_requests_total" in payload
+    assert "research_request_latency_seconds_bucket" in payload
+
+
+@pytest.mark.asyncio
+async def test_metrics_capture_http_and_research_request_activity() -> None:
+    original_get_settings = api_module.get_settings
+    original_get_research_service = api_module.get_research_service
+    api_module.get_settings = lambda: _stub_settings(research_service_auth_token=None)
+    api_module.get_research_service = lambda: StubResearchService()
+
+    try:
+        app = create_app()
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            await client.get("/healthz")
+            await client.post(
+                "/v1/research",
+                json={
+                    "ticker": "nvda",
+                    "question": "Generate an evidence-backed investment thesis.",
+                },
+            )
+            metrics_response = await client.get("/metrics")
+    finally:
+        api_module.get_settings = original_get_settings
+        api_module.get_research_service = original_get_research_service
+
+    payload = metrics_response.text
+    assert (
+        'research_http_requests_total{method="GET",path="/healthz",status_class="2xx"}' in payload
+    )
+    assert (
+        'research_http_requests_total{method="POST",path="/v1/research",status_class="2xx"}'
+        in payload
+    )
+    assert (
+        'research_http_request_latency_seconds_count{method="POST",path="/v1/research",status_class="2xx"}'
+        in payload
+    )
+    assert 'research_requests_total{status="success"}' in payload
+    assert "research_request_latency_seconds_count" in payload
+    assert "research_last_successful_request_timestamp_seconds" in payload

@@ -16,6 +16,27 @@ request_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 _RICH_CONSOLE = Console(stderr=False, soft_wrap=True)
 _RESERVED_ATTRS = set(logging.makeLogRecord({}).__dict__.keys())
 _IGNORED_EXTRA_FIELDS = {"color_message"}
+_SENSITIVE_TOKENS = {
+    "password",
+    "token",
+    "auth_token",
+    "api_key",
+    "secret",
+    "credential",
+}
+_NOISY_LOGGERS = (
+    "urllib3",
+    "httpcore",
+    "httpx",
+    "openai",
+    "sqlalchemy.engine",
+    "uvicorn",
+    "uvicorn.access",
+    "uvicorn.error",
+    "uvicorn.asgi",
+    "asyncio",
+)
+_SERVICE_NAME = "stock-agent-rag"
 
 
 def _utc_timestamp() -> str:
@@ -32,12 +53,20 @@ def _serialize(value: object) -> str:
     return text
 
 
+def _scrub_value(key: str, value: Any) -> Any:
+    lowered_key = key.lower()
+    if any(token in lowered_key for token in _SENSITIVE_TOKENS):
+        return "[REDACTED]"
+    return value
+
+
 def _extra_fields(record: logging.LogRecord) -> dict[str, Any]:
     extras: dict[str, Any] = {}
 
     request_id = request_id_var.get()
     if request_id:
         extras["request_id"] = request_id
+    extras["service"] = _SERVICE_NAME
 
     for key, value in record.__dict__.items():
         if (
@@ -47,7 +76,7 @@ def _extra_fields(record: logging.LogRecord) -> dict[str, Any]:
             or value is None
         ):
             continue
-        extras[key] = value
+        extras[key] = _scrub_value(key, value)
 
     return extras
 
@@ -117,6 +146,7 @@ def _configure_named_logger(
 
 
 def setup_logging(level: str = "INFO", log_format: str = "logfmt") -> None:
+    global _SERVICE_NAME
     root_logger = logging.getLogger()
     root_logger.handlers.clear()
     root_logger.propagate = False
@@ -134,6 +164,17 @@ def setup_logging(level: str = "INFO", log_format: str = "logfmt") -> None:
         _configure_named_logger("httpx", level, effective_root_format, propagate=True)
 
     _configure_named_logger("uvicorn.error", level, effective_root_format, propagate=True)
+
+    for logger_name in _NOISY_LOGGERS:
+        noisy_logger = logging.getLogger(logger_name)
+        noisy_logger.handlers.clear()
+        noisy_logger.setLevel(logging.WARNING)
+        noisy_logger.propagate = False
+
+
+def set_service_name(service_name: str) -> None:
+    global _SERVICE_NAME
+    _SERVICE_NAME = service_name
 
 
 def get_logger(name: str) -> logging.Logger:

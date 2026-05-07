@@ -47,6 +47,7 @@ The project currently supports:
 - a single verifier-driven repair pass for unsupported output cleanup
 - per-node LLM telemetry including token usage, latency, retry counts, timeout counts, model metadata, and estimated cost
 - FastAPI delivery, CLI workflows, audit persistence, and thesis artifact storage
+- Prometheus-compatible service metrics for HTTP throughput, latency, 4xx rate, 5xx rate, and research workflow latency
 
 Recent system hardening work also introduced:
 
